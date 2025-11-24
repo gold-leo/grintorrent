@@ -1,3 +1,3 @@
 # grintorrent  
 
-grintorrent is a torrent for Grinnell College local computers.
+grintorrent is a torrent protocol and client for Grinnell College local computers.
