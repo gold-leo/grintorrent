@@ -5,12 +5,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include <sys/stat.h>
 
 #include "socket.h"
 #include "ui.h"
 
 #define TORRENT_CHUNK_SIZE 2048
 #define MAX_MESSAGE_LENGTH 2048
+#define HASH_LENGTH 16
 #define SOCKET_CLOSED -1
 
 // structure to hold arguments
@@ -23,6 +25,12 @@ typedef struct
 
 } cmd_args_t;
 
+//structure holding chunk information
+typedef struct{
+  bool status;
+  char hash[HASH_LENGTH];
+}chunk_t;
+
 // structure for storing file
 typedef struct
 {
@@ -31,21 +39,9 @@ typedef struct
   struct stat sb;
   char *mapped_data;
   int no_of_chunks;
+  chunk_t *chunks;
 
 } file_t;
-
-/**
- * Calculates the number of chunks that a file should be split into based on the size of the file.
- * \param file THe file structure which holds all the information of the file.
- * \return An interger of the number of chunks of that file
- * */
-int get_number_of_chunks(file_t file)
-{
-  if (sb.st_size < TORRENT_CHUNK_SIZE)
-    return 1;
-  else
-    return ceil(sb.st_size / TORRENT_CHUNK_SIZE);
-}
 
 // FUNCTION DEFINITONS
 int send_message(int fd, char *message);
@@ -496,4 +492,17 @@ void parse_args(cmd_args_t *args, int argc, char **argv)
       break;
     }
   }
+}
+
+/**
+ * Calculates the number of chunks that a file should be split into based on the size of the file.
+ * \param file THe file structure which holds all the information of the file.
+ * \return An interger of the number of chunks of that file
+ * */
+int get_number_of_chunks(file_t file)
+{
+  if (file.sb.st_size < TORRENT_CHUNK_SIZE)
+    return 1;
+  else
+    return ceil(file.sb.st_size / TORRENT_CHUNK_SIZE);
 }
