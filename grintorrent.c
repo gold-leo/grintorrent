@@ -53,7 +53,6 @@ void *readWorker(void *args);
 void print_usage(char **argv);
 void parse_args(cmd_args_t *args, int argc, char **argv);
 void closeConnection(int socket_fd);
-
 // END FUNCTION DEFINITIONS
 
 int *clientSockets;
