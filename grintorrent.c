@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <math.h>
 #include <sys/stat.h>
 
 #include "socket.h"
@@ -497,6 +496,9 @@ int get_number_of_chunks(file_t file)
 {
   if (file.sb.st_size < TORRENT_CHUNK_SIZE)
     return 1;
-  else
-    return ceil(file.sb.st_size / TORRENT_CHUNK_SIZE);
+  else{
+    //if there is a remainder, include more space
+    if (file.sb.st_size % TORRENT_CHUNK_SIZE != 0) return file.sb.st_size / TORRENT_CHUNK_SIZE;
+    else return file.sb.st_size / TORRENT_CHUNK_SIZE;
+    }
 }
