@@ -498,7 +498,7 @@ int get_number_of_chunks(file_t file)
     return 1;
   else{
     //if there is a remainder, include more space
-    if (file.sb.st_size % TORRENT_CHUNK_SIZE != 0) return file.sb.st_size / TORRENT_CHUNK_SIZE;
+    if (file.sb.st_size % TORRENT_CHUNK_SIZE != 0) return file.sb.st_size / TORRENT_CHUNK_SIZE + 1;
     else return file.sb.st_size / TORRENT_CHUNK_SIZE;
     }
 }
