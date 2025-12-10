@@ -4,9 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 
 #include "socket.h"
 #include "ui.h"
+
+#define TORRENT_CHUNK_SIZE 2048
+#define MAX_MESSAGE_LENGTH 2048
+#define SOCKET_CLOSED -1
 
 // structure to hold arguments
 typedef struct
@@ -18,6 +23,30 @@ typedef struct
 
 } cmd_args_t;
 
+// structure for storing file
+typedef struct
+{
+  char *filepath;
+  int fd;
+  struct stat sb;
+  char *mapped_data;
+  int no_of_chunks;
+
+} file_t;
+
+/**
+ * Calculates the number of chunks that a file should be split into based on the size of the file.
+ * \param file THe file structure which holds all the information of the file.
+ * \return An interger of the number of chunks of that file
+ * */
+int get_number_of_chunks(file_t file)
+{
+  if (sb.st_size < TORRENT_CHUNK_SIZE)
+    return 1;
+  else
+    return ceil(sb.st_size / TORRENT_CHUNK_SIZE);
+}
+
 // FUNCTION DEFINITONS
 int send_message(int fd, char *message);
 void *readWorker(void *args);
@@ -26,9 +55,6 @@ void parse_args(cmd_args_t *args, int argc, char **argv);
 void closeConnection(int socket_fd);
 
 // END FUNCTION DEFINITIONS
-
-#define MAX_MESSAGE_LENGTH 2048
-#define SOCKET_CLOSED -1
 
 int *clientSockets;
 int maxSize = 10;
@@ -257,7 +283,7 @@ int main(int argc, char **argv)
   cmd_args_t args = {NULL};
   parse_args(&args, argc, argv);
 
-  // check for extra elements
+  // check for extra elements that cannot be identified
   if (optind < argc)
   {
     print_usage(argv);
@@ -285,6 +311,12 @@ int main(int argc, char **argv)
    * IF A FILE IS PRESENT< STORE THE FILE AND SPLIT INTO CHUNKS.
    * SEND AND RECEIVE REQUESTS FORM OTHERS.
    */
+
+  // file was specified and must be added to current list of files
+  if (args.file_p)
+  {
+    // TODO
+  }
 
   exit(EXIT_SUCCESS);
 
@@ -448,7 +480,7 @@ void parse_args(cmd_args_t *args, int argc, char **argv)
       }
       break;
     case ':':
-    printf("IAM HERE!\n");
+      printf("IAM HERE!\n");
       print_usage(argv);
       exit(EXIT_FAILURE);
       break;
