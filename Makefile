@@ -7,7 +7,7 @@ clean:
 	rm -f grintorrent
 
 grintorrent: grintorrent.c ui.c ui.h
-	$(CC) $(CFLAGS) -o grintorrent grintorrent.c ui.c -lform -lncurses -lpthread
+	$(CC) $(CFLAGS) -o grintorrent grintorrent.c ui.c -lform -lncurses -lpthread -lcrypto -lm
 
 zip:
 	@echo "Generating grintorrent.zip file to submit to Gradescope..."
