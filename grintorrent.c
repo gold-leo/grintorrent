@@ -60,7 +60,7 @@ const char *username;
 
 
 //get all the files{}
-void files_in_network(){
+void network_info(){
   
 }
 
