@@ -4,14 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/stat.h>
-
+#include "files.h"
 #include "socket.h"
 #include "ui.h"
 
 #define TORRENT_CHUNK_SIZE 2048
 #define MAX_MESSAGE_LENGTH 2048
-#define HASH_LENGTH 16
 #define SOCKET_CLOSED -1
 
 // structure to hold arguments
@@ -23,24 +21,6 @@ typedef struct
   char *username_p;
 
 } cmd_args_t;
-
-//structure holding chunk information
-typedef struct{
-  bool status;
-  char hash[HASH_LENGTH];
-}chunk_t;
-
-// structure for storing file
-typedef struct
-{
-  char *filepath;
-  int fd;
-  struct stat sb;
-  char *mapped_data;
-  int no_of_chunks;
-  chunk_t *chunks;
-
-} file_t;
 
 // FUNCTION DEFINITONS
 int send_message(int fd, char *message);
