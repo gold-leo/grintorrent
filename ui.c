@@ -187,6 +187,7 @@ void ui_run() {
  * \param message   The string that should be added to the display pane. As with
  *                  the username, the UI code will copy the string passed in.
  */
+///no user name just a string
 void ui_display(const char* username, const char* message) {
   // Lock the UI
   pthread_mutex_lock(&ui_lock);
