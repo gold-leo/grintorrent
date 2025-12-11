@@ -1,7 +1,8 @@
 List the full names and email addresses of all members of this group below:
 
-Grinnell Student 1 <student@grinnell.edu>
+Leo Goldman <goldmanleo@grinnell.edu>
 Grinnell Student 2 <student@grinnell.edu>
+Grinnell Student 3 <>
 
 By submitting this document, we confirm the following:
 
