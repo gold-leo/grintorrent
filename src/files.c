@@ -94,7 +94,6 @@ int init_file_desc(char* name, char* file_path, file_desc_t* file_desc) {
   md5_hash(fd, file_desc->chunk_num * file_desc->chunk_size, buf.st_size - 1, hash);
   memcpy(file_desc->chunk_hashes[file_desc->chunk_num], hash, MD5_DIGEST_LENGTH);
 
-
   // Add yourself to the list of available peers.
   // TODO: how to find your own socket and address.
   file_desc->available_peer_chunks.chunk_availability[0] = 0xFF;
