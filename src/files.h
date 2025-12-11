@@ -10,6 +10,8 @@
 #define MAX_CHUNKS 8
 // The size required for a file to have the max number of chunks.
 #define MAX_CHUNKS_LOWER_BOUND 8192
+// Indicates that the file is complete.
+#define COMPLETE_FILE 0xFF
 
 // Describes the status of a file for a client.
 // Remains internal to the client. Client shares verified_chunks when asked.
@@ -20,7 +22,7 @@ typedef struct {
   char* location;
   // State of the chunks that the client has. 1 = verified, 0 = unverified.
   // char is 8 bits.
-  char verified_chunks;
+  uint8_t verified_chunks;
 } file_status_t;
 
 // Struct for the availability of a file based off of peers.
