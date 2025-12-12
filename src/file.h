@@ -1,0 +1,59 @@
+#pragma once
+#include <openssl/md5.h>
+#include <sys/stat.h>
+
+// The number of chunks per file.
+#define NUM_CHUNKS 8
+
+// The value which defines a vully verified file.
+#define VERIFIED_FILE 0xFF
+// Holds information on which chunks are verified (match their respective hash).
+typedef uint8_t verified_chunks_t;
+
+// Struct which describes a torrent file (tfile). For INTERNAL use by clients.
+typedef struct {
+  // Name of the file
+  char name[32];
+  // Hash of the entire file.
+  unsigned char f_hash[MD5_DIGEST_LENGTH];
+  // Hashes of the chunks.
+  unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
+  // Minimum size of a chunk. The last chunk may be larger by NUM_CHUNKS-1.
+  off_t c_minsize;
+  // Full file location
+  char* f_location;
+  // Chunk locations
+  char* c_locations[NUM_CHUNKS];
+
+  // Potentially add a peer availability list if there's enough time.
+} tfile_t;
+
+// Struct which defines a torrent file (tfile). For EXTERNAL use between peers.
+typedef struct {
+  // Name of the file
+  char name[32];
+  // Hash of the entire file.
+  unsigned char f_hash[MD5_DIGEST_LENGTH];
+  // Hashes of the chunks.
+  unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
+  // Limits the chunk size (so a peer cannot overload a socket with data)
+  // Note: isn't needed if we used async keys as hashes... future update?
+  // Or ask the peer for the hashes back?
+  off_t c_minsize;
+} tfile_def_t;
+
+// Hash table for tfiles.
+typedef struct {
+  int capacity;
+  int size;
+  tfile_t* table;
+} htable_t;
+
+/* --- Function Declarations --- */
+void create_htable(htable_t*);
+int resize_htable(htable_t*);
+tfile_t* add_htable(htable_t*, tfile_t);
+tfile_t* search_htable(htable_t*, tfile_t);
+
+int file_hash(char*, unsigned char*);
+tfile_t* new_tfile(htable_t*, char*, char name[32]);
