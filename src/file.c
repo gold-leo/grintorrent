@@ -95,7 +95,7 @@ tfile_t* new_tfile(htable_t* htable, char* file_path, char name[32]) {
   md5_hash(fd, 0, buf.st_size, ntf.f_hash);
 
   // Make sure we don't already have this file's hash in the hash table.
-  if (!search_htable(htable, ntf)) {
+  if (search_htable(htable, ntf) != NULL) {
     perror("File already has a tfile");
     return NULL;
   }
@@ -133,6 +133,9 @@ tfile_t* new_tfile(htable_t* htable, char* file_path, char name[32]) {
 
   // Add to the hash table.
   return add_htable(htable, ntf);
+  // tfile_t* t = malloc(sizeof(tfile_t));
+  // memcpy(t, &ntf, sizeof(tfile_t));
+  // return t;
 }
 
 // Add an existing tfile (likely from a peer) to the hash table.

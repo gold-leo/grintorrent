@@ -1,5 +1,7 @@
 #pragma once
+#include <stddef.h>
 #include <openssl/md5.h>
+#include <stddef.h>
 #include <sys/stat.h>
 
 // The number of chunks per file.
@@ -44,8 +46,8 @@ typedef struct {
 
 // Hash table for tfiles.
 typedef struct {
-  int capacity;
-  int size;
+  size_t capacity;
+  size_t size;
   tfile_t* table;
 } htable_t;
 

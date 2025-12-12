@@ -1,4 +1,5 @@
 #include "file.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -28,15 +29,18 @@ tfile_t* add_htable(htable_t* htable, tfile_t tfile) {
     resize_htable(htable);
   }
 
-  uint16_t hash = *(uint16_t*)tfile.f_hash;
-  int index = hash & (uint16_t)(htable->capacity - 1);
+  // Find the index using the first half of the hash
+  uint64_t hash1 = *(uint64_t*)tfile.f_hash;
+  uint64_t hash2 = *(((uint64_t*)tfile.f_hash) + 1);
+  size_t index = hash1 & (uint64_t)(htable->capacity - 1);
 
   for (;;) {
-    uint16_t test_hash = *(uint16_t*)htable->table[index].f_hash;
-    if (test_hash == 0) {
+    uint64_t test_hash1 = *(uint64_t*)htable->table[index].f_hash;
+    uint64_t test_hash2 = *(((uint64_t*)htable->table[index].f_hash) + 1);
+    if ((!test_hash1) && (!test_hash2)) {
       htable->table[index] = tfile;
       return &htable->table[index];
-    } else if (test_hash == hash) {
+    } else if (hash1 == test_hash1 && hash2 == test_hash2) {
       return NULL;
     }
 
@@ -73,14 +77,17 @@ int resize_htable(htable_t* htable) {
 // Search the htable. Return index.
 // Return NULL if none is found.
 tfile_t* search_htable(htable_t* htable, tfile_t tfile) {
-  uint16_t hash = *(uint16_t*)tfile.f_hash;
-  int index = hash & (uint16_t)(htable->capacity - 1);
+  uint64_t hash1 = *(uint64_t*)tfile.f_hash;
+  uint64_t hash2 = *(((uint64_t*)tfile.f_hash) + 1);
+
+  size_t index = hash1 & (uint64_t)(htable->capacity - 1);
 
   for (;;) {
-    uint16_t test_hash = *(uint16_t*)htable->table[index].f_hash;
-    if (test_hash == 0) {
+    uint64_t test_hash1 = *(uint64_t*)htable->table[index].f_hash;
+    uint64_t test_hash2 = *(((uint64_t*)htable->table[index].f_hash) + 1);
+    if ((!test_hash1) && (!test_hash2)) {
       return NULL;
-    } else if (test_hash == hash) {
+    } else if (hash1 == test_hash1 && hash2 == test_hash2) {
       return &htable->table[index];
     }
 
