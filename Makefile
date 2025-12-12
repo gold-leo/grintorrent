@@ -9,6 +9,9 @@ clean:
 grintorrent: grintorrent.c ui.c ui.h
 	$(CC) $(CFLAGS) -o grintorrent grintorrent.c ui.c -lform -lncurses -lpthread -lcrypto -lm
 
+file_test: ./src/file.h ./tests/file_test.c ./src/file.c ./src/htable.c
+	$(CC) $(CFLAGS) -Wno-error=deprecated-declarations -o file_test ./tests/file_test.c ./src/file.c ./src/htable.c -lform -lncurses -lpthread -lcrypto -lm
+
 zip:
 	@echo "Generating grintorrent.zip file to submit to Gradescope..."
 	@zip -q -r grintorrent.zip . -x .git/\* .vscode/\* .clang-format .gitignore grintorrent

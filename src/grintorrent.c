@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "../src/files.h"
+#include "../src/file.h"
 #include "socket.h"
 #include "ui.h"
 
