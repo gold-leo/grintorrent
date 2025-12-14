@@ -1,4 +1,5 @@
 #include "file.h"
+#include <sys/mman.h>
 #include <stdio.h>
 #include <openssl/md5.h>
 #include <sys/stat.h>
@@ -73,7 +74,7 @@ int file_hash(char* file_path, unsigned char* hash) {
 
 // Create a completely new tfile and add to the hash table.
 // Returns the location of the tfile or NULL if failed.
-tfile_t* new_tfile(htable_t* htable, char* file_path, char name[32]) {
+tfile_t* new_tfile(htable_t* htable, char* file_path, char name[NAME_LEN]) {
   // Open the file.
   int fd = open(file_path, O_RDONLY); // Consider adding O_LARGEFILE, talk to Charlie about this
   if (fd == -1) {
@@ -94,25 +95,28 @@ tfile_t* new_tfile(htable_t* htable, char* file_path, char name[32]) {
   // Find the file's hash and copy into the tfile.
   md5_hash(fd, 0, buf.st_size, ntf.f_hash);
 
+  // Copy the size of the file into the tfile.
+  ntf.size = buf.st_size;
+
   // Make sure we don't already have this file's hash in the hash table.
-  if (search_htable(htable, ntf) != NULL) {
+  if (search_htable(htable, ntf.f_hash) != NULL) {
     perror("File already has a tfile");
     return NULL;
   }
 
   // Set the chunk size. The very last chunk will vary in size.
-  ntf.c_minsize = buf.st_size / NUM_CHUNKS;
+  off_t c_size = buf.st_size / NUM_CHUNKS;
 
   // Calculate the hashes for each chunk.
   // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
-  off_t offset = ntf.c_minsize * NUM_CHUNKS-1;                        // The start of the chunk.
+  off_t offset = c_size * NUM_CHUNKS-1;                               // The start of the chunk.
   off_t size = buf.st_size - offset;                                  // The size of the chunk.
   md5_hash(fd, offset, size, ntf.c_hashes[NUM_CHUNKS-1]);             // Calculate the hash.
 
   // Loop for the other chunks.
   for (int i = 0; i < NUM_CHUNKS-1; i++) {
-    offset = i * ntf.c_minsize;
-    md5_hash(fd, offset, ntf.c_minsize, ntf.c_hashes[i]);
+    offset = i * c_size;
+    md5_hash(fd, offset, c_size, ntf.c_hashes[i]);
   }
 
   // Copy the name into the tfile
@@ -123,10 +127,8 @@ tfile_t* new_tfile(htable_t* htable, char* file_path, char name[32]) {
   ntf.f_location = file_path;
 
   // Set all chunk locations to NULL
-  // (we have the full file)
-  for (int i = 0; i < NUM_CHUNKS; i++) {
-    ntf.c_locations[i] = NULL;
-  }
+  // (we haven't loaded the file into memory yet)
+  ntf.m_location = NULL;
 
   // Close the file.
   close(fd);
@@ -136,6 +138,53 @@ tfile_t* new_tfile(htable_t* htable, char* file_path, char name[32]) {
   // tfile_t* t = malloc(sizeof(tfile_t));
   // memcpy(t, &ntf, sizeof(tfile_t));
   // return t;
+}
+
+// Takes a hash
+// Assigns <location> to the starting point of specified chunk in memory.
+// If the file doesn't exist yet, the file is created.
+// If the memory-mapped data from the file doesn't exist yet, it is created.
+// <chunk> starts at 0!!
+off_t chunk_location(htable_t* htable, void** location, unsigned char hash[MD5_DIGEST_LENGTH], int chunk) {
+  // Search for the htable that correspons with the hash.
+  tfile_t* tf = search_htable(htable, hash);
+  if (tf == NULL) {
+    return -1;
+  }
+
+  // If we dont have a memory-mapped location already, create it.
+  if (tf->m_location == NULL) {
+    // If we dont have a file already, create it.
+    // The name and location are the current working directory and the name of the specified file. (name must include file extension)
+    if (tf->f_location == NULL) {
+      tf->f_location = tf->name;
+    }
+    int fd = open(tf->f_location, O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR);
+    if (fd == -1) {
+      perror("Cound not open or create file");
+      return -1;
+    }
+    // Set the size to be equal to the tfile specification
+    ftruncate(fd, tf->size);
+    void* m_location = mmap(NULL, (size_t)tf->size, PROT_WRITE, MAP_FILE, fd, 0);  // Converting a signed long to an unsigned long might be a bad idea
+    if (m_location == MAP_FAILED) {
+      perror("Could not create a memory-mapped location for the file");
+      return -1;
+    }
+    tf->m_location = m_location;
+    close(fd);
+  }
+
+  // Calculate the chunk size.
+  off_t chunk_size = tf->size / NUM_CHUNKS;
+  *location = (chunk * chunk_size) + (char*)tf->m_location;
+
+  // If it's the last chunk, recalculate the chunk size
+  if (chunk == NUM_CHUNKS-1) {
+    chunk_size = tf->size - (NUM_CHUNKS-1 * chunk_size);
+  }
+
+  return chunk_size;
 }
 
 // Add an existing tfile (likely from a peer) to the hash table.

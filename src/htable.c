@@ -1,4 +1,5 @@
 #include "file.h"
+#include <openssl/md5.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -8,8 +9,7 @@
 #define STARTING_CAPACITY 256
 
 // Initialize hash table.
-void create_htable(htable_t* htable) {
-
+void init_htable(htable_t* htable) {
   htable->capacity = STARTING_CAPACITY;
   htable->size = 0;
   htable->table = calloc(sizeof(tfile_t), STARTING_CAPACITY);
@@ -76,9 +76,9 @@ int resize_htable(htable_t* htable) {
 
 // Search the htable. Return index.
 // Return NULL if none is found.
-tfile_t* search_htable(htable_t* htable, tfile_t tfile) {
-  uint64_t hash1 = *(uint64_t*)tfile.f_hash;
-  uint64_t hash2 = *(((uint64_t*)tfile.f_hash) + 1);
+tfile_t* search_htable(htable_t* htable, unsigned char hash[MD5_DIGEST_LENGTH]) {
+  uint64_t hash1 = *(uint64_t*)hash;
+  uint64_t hash2 = *(((uint64_t*)hash) + 1);
 
   size_t index = hash1 & (uint64_t)(htable->capacity - 1);
 
