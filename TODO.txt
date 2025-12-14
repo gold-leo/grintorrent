@@ -1,0 +1,51 @@
+There are two sides of the project: the file side and the client side.
+
+
+FILE SIDE:
+  The file side handles all the details with the file storage and file chunks. That way the client side doesn't have to think about all that.
+  I am mostly working on the file side and will have it finished soon.
+
+  Test that chunk_location() works properly.
+    chunk_location() is used for uploading or downloading files.
+    When you want to upload a chunk, call chunk_location(). Same for downloading a chunk.
+    chunk_location returns a pointer to a memory-mapped space (basically a space in memory linked to the file).
+    If downloading, just write to that pointer. If uploading, just read from it.
+    Once you are done, make sure to chunk_close().
+
+
+  Next things to make:
+  Return what chunks are available given a hash.
+   - Check mmap pointers
+   - Check filepath
+  Close the mmap pointers
+   - Check if pointers exist
+   - If they do, unmmap/save
+   - NULL the pointers
+  Return a pointer to the start of a tfile_def array.
+   - Index through hash table
+   - Convert all tfiles to tfile_defs
+
+
+CLIENT SIDE:
+  After some forethought, we cannot use a recursive approach to finding peers with the files we want.
+  This is because we would have to wait for every single peer in the network before we get the result.
+  With multiple people asking for the files at once, each request would cause a multiplicity of slowdowns.
+  Plus, if one peer is not responding, the entire network stops functioning.
+
+  There are two alternatives to the recursive method. The first one is "recursive DNS" (which really means iterative DNS).
+  This is used commonly by DNS servers to find the ip addresses of servers.
+  If you want a file, instead of asking one peer who then asks a peer they are connected to (the recursive approach),
+  the peer we ask just sends us a list of the peers *they* are connected to, and we ask each peer on that list if they have the file themselves.
+  This is the most robust option and can become very efficient, especially if we implemented caching.
+  It would also mean that the network wouldn't have to be a tree anymore.
+  The issue with this approach is that it is complex. It requires some moving parts and is kind of complicated to think about
+  and to implement entirely.
+
+  The other solution is kind of a halfway point. Instead of asking "who has the file?" then choosing people to connect to out of that list, we do the opposite.
+  Instead, we just send out a request for the file and wait/listen for individual responses until we get all of the file. Then we stop listening.
+  First, we create a listening socket. We send a request to our peer for a file, along with our own address and the socket number.
+  That peer checks if they have any part of the file. If they do, they connect to our socket and tell us what chunks they have.
+  If we need the chunks they have, we start to download ONE of those chunks. Our peer then sends our request to all of his connected peers.
+  The process continues from there. If they don't have the file, they forward our request. If they do, they check if we still need any chunks.
+  If we don't, then they don't forward the request.
+  This is the more simple solution, its not as robust but it works just fine and is much much easier to implement.
