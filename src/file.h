@@ -15,6 +15,7 @@
 #define UNVERIFIED_FILE 0x00
 // Holds information on which chunks are verified (match their respective hash).
 typedef uint8_t verified_chunks_t;
+typedef unsigned char* hash_t[MD5_DIGEST_LENGTH];
 
 // Struct which describes a torrent file (tfile). For INTERNAL use by clients.
 typedef struct {
@@ -62,7 +63,7 @@ tfile_t* add_htable(htable_t*, tfile_t);
 tfile_t* search_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 
 // File.c
-tfile_t* new_tfile(htable_t*, char*, char name[NAME_LEN]);
+int new_tfile(htable_t*, tfile_def_t*, char*, char name[NAME_LEN]);
 unsigned char verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 off_t chunk_location(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);
 tfile_t* add_tfile(htable_t*, tfile_def_t);

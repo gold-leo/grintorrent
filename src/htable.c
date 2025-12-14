@@ -29,7 +29,7 @@ tfile_t* locate_htable(htable_t* htable, unsigned char hash[MD5_DIGEST_LENGTH]) 
     resize_htable(htable);
   }
 
-  // Find the index using the first half of the hash
+  // Find the index using the hash
   uint64_t hash1 = *(uint64_t*)hash;
   uint64_t hash2 = *(((uint64_t*)hash) + 1);
   size_t index = hash1 & (uint64_t)(htable->capacity - 1);

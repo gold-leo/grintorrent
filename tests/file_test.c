@@ -14,28 +14,28 @@ int main() {
 
   // Creating a new tfile using a new file you already have ownership of.
   // Will return NULL if the hash is already in the table, or if it fails.
-  tfile_t* tf = new_tfile(&ht, "./tests/sample.txt", "Test for file setup");
-  if (tf == NULL) {
-    printf("Failed to create new tfile");
+  tfile_def_t tf;
+  if (!new_tfile(&ht, &tf, "./tests/sample.txt", "Test for file setup")) {
+    printf("generating tfile failed");
   }
 
-  printf("%s\n", tf->name);
-  printf("File size: %ld\n", tf->size);
-  printf("Location: %s\n", tf->f_location);
+  // Print the information generated about the tfile.
+  printf("%s\n", tf.name);
+  printf("File size: %ld\n", tf.size);
   printf("File Hash: ");
-  print_hash(tf->f_hash);
+  print_hash(tf.f_hash);
   printf("\n");
   printf("Chunk Hashes:\n");
   for (int i = 0; i < NUM_CHUNKS; i++) {
-    print_hash(tf->c_hashes[i]);
+    print_hash(tf.c_hashes[i]);
     printf("\n");
   }
 
   void* start_location = NULL;
   void* next_location = NULL;
-  int next_chunk = 6;
-  off_t s_size = chunk_location(&ht, &start_location, tf->f_hash, 0);
-  off_t n_size = chunk_location(&ht, &next_location, tf->f_hash, next_chunk);
+  int next_chunk = 5;
+  off_t s_size = chunk_location(&ht, &start_location, tf.f_hash, 0);
+  off_t n_size = chunk_location(&ht, &next_location, tf.f_hash, next_chunk);
   if (start_location == NULL | next_location == NULL) {
     printf("Memory mapping failed :(\n");
   } else {
@@ -45,36 +45,37 @@ int main() {
   }
 
   char c = *(char*)next_location;
-  printf("Verification result: %x\n", verify_tfile(&ht, tf->f_hash));
+  printf("Verification result: %x\n", verify_tfile(&ht, tf.f_hash));
   *(char*)next_location = 'A';
   printf("Changed starting character of chunk %d to %c\n", next_chunk, *(char*)next_location);
-  printf("Verification result after edit: %x\n", verify_tfile(&ht, tf->f_hash));
+  printf("Verification result after edit: %x\n", verify_tfile(&ht, tf.f_hash));
   *(char*)next_location = c;
 
 
-  // printf("\n");
+  // Now test adding a tfile_def to the hash table.
+  printf("\n");
 
-  // tfile_def_t tdef = {
-  //   .name = "Empty file test",
-  //   .f_hash = "0123456789abcde",
-  //   .c_hashes = {"qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg"},
-  //   .size = 1024
-  // };
+  tfile_def_t tdef = {
+    .name = "Empty file test",
+    .f_hash = "0123456789abcde",
+    .c_hashes = {"qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg"},
+    .size = 1024
+  };
 
-  // unsigned char hash[MD5_DIGEST_LENGTH] = "0123456789abcde";
-  // tfile_t* tfd = add_tfile(&ht, tdef);
-  // printf("%s\n", tfd->name);
-  // printf("File size: %ld\n", tfd->size);
-  // printf("Location: %s\n", tfd->f_location);
-  // printf("File Hash: ");
-  // print_hash(tfd->f_hash);
-  // printf("\n");
-  // printf("Chunk Hashes:\n");
-  // for (int i = 0; i < NUM_CHUNKS; i++) {
-  //   print_hash(tfd->c_hashes[i]);
-  //   printf("\n");
-  // }
-  // printf("Verification result: %02x\n", verify_tfile(&ht, hash));
+  unsigned char hash[MD5_DIGEST_LENGTH] = "0123456789abcde";
+  tfile_t* tfd = add_tfile(&ht, tdef);
+  printf("%s\n", tfd->name);
+  printf("File size: %ld\n", tfd->size);
+  printf("Location: %s\n", tfd->f_location);
+  printf("File Hash: ");
+  print_hash(tfd->f_hash);
+  printf("\n");
+  printf("Chunk Hashes:\n");
+  for (int i = 0; i < NUM_CHUNKS; i++) {
+    print_hash(tfd->c_hashes[i]);
+    printf("\n");
+  }
+  printf("Verification result: %02x\n", verify_tfile(&ht, hash));
 
 
 
