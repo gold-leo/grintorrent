@@ -41,10 +41,8 @@ typedef struct {
   unsigned char f_hash[MD5_DIGEST_LENGTH];
   // Hashes of the chunks.
   unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
-  // Limits the chunk size (so a peer cannot overload a socket with data)
-  // Note: isn't needed if we used async keys as hashes... future update?
-  // Or ask the peer for the hashes back?
-  off_t c_minsize;
+  // Size of the file
+  off_t size;
 } tfile_def_t;
 
 // Hash table for tfiles.
@@ -57,6 +55,7 @@ typedef struct {
 /* --- Function Declarations --- */
 void init_htable(htable_t*);
 int resize_htable(htable_t*);
+tfile_t* locate_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 tfile_t* add_htable(htable_t*, tfile_t);
 tfile_t* search_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 

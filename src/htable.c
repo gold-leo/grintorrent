@@ -23,6 +23,34 @@ void free_htable(htable_t* htable) {
   free(htable->table);
 }
 
+// Locate a place where a hash would be on the hash table.
+tfile_t* locate_htable(htable_t* htable, unsigned char hash[MD5_DIGEST_LENGTH]) {
+  if (htable->capacity < htable->size * 2) {
+    resize_htable(htable);
+  }
+
+  // Find the index using the first half of the hash
+  uint64_t hash1 = *(uint64_t*)hash;
+  uint64_t hash2 = *(((uint64_t*)hash) + 1);
+  size_t index = hash1 & (uint64_t)(htable->capacity - 1);
+
+  for (;;) {
+    uint64_t test_hash1 = *(uint64_t*)htable->table[index].f_hash;
+    uint64_t test_hash2 = *(((uint64_t*)htable->table[index].f_hash) + 1);
+    if ((!test_hash1) && (!test_hash2)) {
+      return &htable->table[index];
+    } else if (hash1 == test_hash1 && hash2 == test_hash2) {
+      return NULL;
+    }
+
+    if (index >= htable->capacity) {
+      index = 0;
+    } else {
+      index++;
+    }
+  }
+}
+
 // Add to hash table.
 tfile_t* add_htable(htable_t* htable, tfile_t tfile) {
   if (htable->capacity < htable->size * 2) {
