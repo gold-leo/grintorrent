@@ -1,4 +1,5 @@
 #include "file.h"
+#include <stdint.h>
 #include <sys/mman.h>
 #include <stdio.h>
 #include <openssl/md5.h>
@@ -50,25 +51,6 @@ int md5_hash(int fd, off_t offset, off_t size, unsigned char* hash) {
   MD5_Final(hash, &c);
 
 
-  return 0;
-}
-
-// Find the hash of a file.
-int file_hash(char* file_path, unsigned char* hash) {
-  // Open the file.
-  int fd = open(file_path, O_RDONLY); // Consider adding O_LARGEFILE, talk to Charlie about this
-  if (fd == -1) {
-    perror("Could not open file");
-    return -1;
-  }
-  struct stat buf;
-  fstat(fd, &buf);
-
-  // Calculate the hash.
-  md5_hash(fd, 0, buf.st_size, hash);
-
-  // Close the file.
-  close(fd);
   return 0;
 }
 
@@ -173,6 +155,7 @@ off_t chunk_location(htable_t* htable, void** location, unsigned char hash[MD5_D
 
   // Calculate the chunk size.
   off_t chunk_size = tf->size / NUM_CHUNKS;
+
   *location = (chunk * chunk_size) + (char*)tf->m_location;
 
   // If it's the last chunk, recalculate the chunk size
@@ -202,7 +185,101 @@ int add_tfile(htable_t* ht, tfile_def_t tfile_def) {
   return 0;
 }
 
-// Initializes a tfile_def from a
-int init_tfile_def() {
-  return 0;
+// Returns the chunks which are verified.
+unsigned char verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGTH]) {
+  tfile_t* tf = search_htable(ht, hash);
+  if (tf == NULL) {
+    return UNVERIFIED_FILE;
+  }
+
+  unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
+
+  if (tf->m_location != NULL) {
+    // Check the entire file hash first
+    unsigned char test_hash[MD5_DIGEST_LENGTH];
+    MD5((unsigned char*)tf->m_location, (size_t)tf->size, test_hash);
+
+    // Compare the file hash with the specified tfile hash.
+    uint64_t th1 = *(uint64_t*)test_hash;
+    uint64_t th2 = *(((uint64_t*)test_hash) + 1);
+
+    uint64_t fh1 = *(uint64_t*)tf->f_hash;
+    uint64_t fh2 = *(((uint64_t*)tf->f_hash) + 1);
+
+    // If f is fully verified, we can stop here.
+    if (th1 == fh1 && th2 == fh2) {
+      return VERIFIED_FILE;
+    }
+
+    // Chunk size
+    off_t chunk_size = tf->size / NUM_CHUNKS;
+
+    // Calculate the hashes for each chunk.
+    // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
+    unsigned char* offset = (unsigned char*)tf->m_location + (chunk_size * NUM_CHUNKS-1);      // The start of the chunk.
+    off_t size = tf->size - (chunk_size * NUM_CHUNKS-1);                                       // The size of the chunk.
+    MD5(offset, size, c_hashes[NUM_CHUNKS-1]);                                             // The hash of the last chunk.
+
+    // Loop for the other chunks.
+    for (int i = 0; i < NUM_CHUNKS-1; i++) {
+      offset = (unsigned char*)tf->m_location + (chunk_size * i);
+      MD5(offset, chunk_size, c_hashes[i]);
+    }
+  } else if (tf->f_location != NULL) {
+    // Open the file.
+    int fd = open(tf->f_location, O_RDONLY);
+    if (fd == -1) {
+      perror("Could not open file for verification");
+      return UNVERIFIED_FILE;
+    }
+    struct stat buf;
+    fstat(fd, &buf);
+
+    // Create a hash for the entire file.
+    unsigned char test_hash[MD5_DIGEST_LENGTH];
+    md5_hash(fd, 0, buf.st_size, test_hash);
+
+    // Compare the file hash with the tfile hash.
+    uint64_t th1 = *(uint64_t*)test_hash;
+    uint64_t th2 = *(((uint64_t*)test_hash) + 1);
+
+    uint64_t fh1 = *(uint64_t*)tf->f_hash;
+    uint64_t fh2 = *(((uint64_t*)tf->f_hash) + 1);
+
+    // File is fully verified if the hashes match. We can stop here.
+    if (th1 == fh1 && th2 == fh2) {
+      return VERIFIED_FILE;
+    }
+
+    // Iterate through the chunks, verfiying them.
+    unsigned char verified_chunks = UNVERIFIED_FILE;
+
+    // Calculate the hashes for each chunk.
+    // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
+    off_t chunk_size = tf->size / NUM_CHUNKS;                               // The chunk size.
+    off_t offset = chunk_size * NUM_CHUNKS-1;                               // The start of the last chunk.
+    off_t size = tf->size - offset;                                         // The size of the last chunk.
+    md5_hash(fd, offset, size, c_hashes[NUM_CHUNKS-1]);                     // Calculate the hash.
+
+    // Loop for the other chunks.
+    for (int i = 0; i < NUM_CHUNKS-1; i++) {
+      offset = i * chunk_size;
+      md5_hash(fd, offset, chunk_size, c_hashes[i]);
+    }
+  } else {
+    return UNVERIFIED_FILE;
+  }
+
+  // Compare the hashes.
+  uint64_t t1, t2, c1, c2;
+  unsigned char verified_chunks = UNVERIFIED_FILE;
+
+  for (int i = 0; i < NUM_CHUNKS; i++) {
+    t1 = *(uint64_t*)c_hashes[i];
+    t2 = *(((uint64_t*)c_hashes[i]) + 1);
+    c1 = *(uint64_t*)tf->c_hashes[i];
+    c2 = *(((uint64_t*)tf->c_hashes[i]) + 1);
+    verified_chunks = verified_chunks | ((t1 == c1 && t2 == c2) << (NUM_CHUNKS-1 - i));
+  }
+  return verified_chunks;
 }

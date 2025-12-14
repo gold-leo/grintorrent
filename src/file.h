@@ -12,6 +12,7 @@
 
 // The value which defines a vully verified file.
 #define VERIFIED_FILE 0xFF
+#define UNVERIFIED_FILE 0x00
 // Holds information on which chunks are verified (match their respective hash).
 typedef uint8_t verified_chunks_t;
 
