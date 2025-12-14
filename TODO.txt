@@ -14,9 +14,6 @@ FILE SIDE:
 
 
   Next things to make:
-  Return what chunks are available given a hash.
-   - Check mmap pointers
-   - Check filepath
   Close the mmap pointers
    - Check if pointers exist
    - If they do, unmmap/save

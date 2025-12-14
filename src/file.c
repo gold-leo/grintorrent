@@ -137,14 +137,14 @@ off_t chunk_location(htable_t* htable, void** location, unsigned char hash[MD5_D
     if (tf->f_location == NULL) {
       tf->f_location = tf->name;
     }
-    int fd = open(tf->f_location, O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR);
+    int fd = open(tf->f_location, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
     if (fd == -1) {
-      perror("Cound not open or create file");
+      perror("Could not open or create file");
       return -1;
     }
     // Set the size to be equal to the tfile specification
     ftruncate(fd, tf->size);
-    void* m_location = mmap(NULL, (size_t)tf->size, PROT_WRITE, MAP_FILE, fd, 0);  // Converting a signed long to an unsigned long might be a bad idea
+    void* m_location = mmap(NULL, (size_t)tf->size, PROT_WRITE, MAP_SHARED, fd, 0);  // Converting a signed long to an unsigned long might be a bad idea
     if (m_location == MAP_FAILED) {
       perror("Could not create a memory-mapped location for the file");
       return -1;
@@ -160,7 +160,7 @@ off_t chunk_location(htable_t* htable, void** location, unsigned char hash[MD5_D
 
   // If it's the last chunk, recalculate the chunk size
   if (chunk == NUM_CHUNKS-1) {
-    chunk_size = tf->size - (NUM_CHUNKS-1 * chunk_size);
+    chunk_size = tf->size - (chunk * chunk_size);
   }
 
   return chunk_size;

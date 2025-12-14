@@ -62,3 +62,5 @@ tfile_t* search_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 
 int file_hash(char*, unsigned char*);
 tfile_t* new_tfile(htable_t*, char*, char name[NAME_LEN]);
+unsigned char verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
+off_t chunk_location(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);

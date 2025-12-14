@@ -23,24 +23,20 @@ int main() {
     printf("%lx\n", *(((uint64_t*)tf->c_hashes[i]) + 1));
   }
 
-  // Next things to make:
-  // Return what chunks are available given a hash.
-  //  - Check mmap pointers
-  //  - Check filepath
-  // Add a tfile based off of a tfile_def
-  // Open a mem segment for a file and return a pointer and size of a chunk.
-  //  - Check mmap pointers
-  //  - If none exist, mmap and create them
-  //  - Share array of pointers back
-  // Close the mmap pointers
-  //  - Check if pointers exist
-  //  - If they do, unmmap/save
-  //  - NULL the pointers
-  // Return a pointer to the start of a tfile_def array.
-  //  - Index through hash table
-  //  - Convert all tfiles to tfile_defs
-  //
+  void* start_location = NULL;
+  void* next_location = NULL;
+  int next_chunk = 7;
+  off_t s_size = chunk_location(&ht, &start_location, tf->f_hash, 0);
+  off_t n_size = chunk_location(&ht, &next_location, tf->f_hash, next_chunk);
+  if (start_location == NULL | next_location == NULL) {
+    printf("Memory mapping failed :(\n");
+  } else {
+    printf("Starting character -> %c\n Size -> %ld\n", *(char*)start_location, s_size);
+    printf("Chunk %d starting character -> %c\n Size -> %ld\n", next_chunk, *(char*)next_location, n_size);
+    printf("Distance between: %ld + %ld = %ld\n", next_location-start_location, n_size, next_location - start_location + n_size);
+  }
 
+  printf("Verification result: %x\n", verify_tfile(&ht, tf->f_hash));
 
   return 0;
 }
