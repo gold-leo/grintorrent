@@ -91,8 +91,8 @@ tfile_t* new_tfile(htable_t* htable, char* file_path, char name[NAME_LEN]) {
 
   // Calculate the hashes for each chunk.
   // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
-  off_t offset = c_size * NUM_CHUNKS-1;                               // The start of the chunk.
-  off_t size = buf.st_size - offset;                                  // The size of the chunk.
+  off_t offset = c_size * (NUM_CHUNKS-1);                               // The start of the chunk.
+  off_t size = buf.st_size - offset;                                   // The size of the chunk.
   md5_hash(fd, offset, size, ntf->c_hashes[NUM_CHUNKS-1]);             // Calculate the hash.
 
   // Loop for the other chunks.
@@ -167,22 +167,22 @@ off_t chunk_location(htable_t* htable, void** location, unsigned char hash[MD5_D
 }
 
 // Add an existing tfile (likely from a peer) to the hash table.
-int add_tfile(htable_t* ht, tfile_def_t tfile_def) {
+tfile_t* add_tfile(htable_t* ht, tfile_def_t tfile_def) {
   tfile_t* tfile = locate_htable(ht, tfile_def.f_hash);
   if (tfile == NULL) {
-    return -1;
+    return NULL;
   }
 
   tfile->size = tfile_def.size;
   memcpy(tfile->name, tfile_def.name, NAME_LEN);
   memcpy(tfile->f_hash, tfile_def.f_hash, MD5_DIGEST_LENGTH);
-  for (int i = 0; i < NUM_CHUNKS-1; i++) {
+  for (int i = 0; i < NUM_CHUNKS; i++) {
     memcpy(tfile->c_hashes[i], tfile_def.c_hashes[i], MD5_DIGEST_LENGTH);
   }
   tfile->f_location = NULL;
   tfile->m_location = NULL;
 
-  return 0;
+  return tfile;
 }
 
 // Returns the chunks which are verified.
@@ -216,9 +216,9 @@ unsigned char verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGTH]) 
 
     // Calculate the hashes for each chunk.
     // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
-    unsigned char* offset = (unsigned char*)tf->m_location + (chunk_size * NUM_CHUNKS-1);      // The start of the chunk.
-    off_t size = tf->size - (chunk_size * NUM_CHUNKS-1);                                       // The size of the chunk.
-    MD5(offset, size, c_hashes[NUM_CHUNKS-1]);                                             // The hash of the last chunk.
+    unsigned char* offset = (unsigned char*)tf->m_location + (chunk_size * (NUM_CHUNKS-1));      // The start of the chunk.
+    off_t size = tf->size - (chunk_size * (NUM_CHUNKS-1));                                       // The size of the chunk.
+    MD5(offset, size, c_hashes[NUM_CHUNKS-1]);                                                 // The hash of the last chunk.
 
     // Loop for the other chunks.
     for (int i = 0; i < NUM_CHUNKS-1; i++) {
@@ -257,7 +257,7 @@ unsigned char verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGTH]) 
     // Calculate the hashes for each chunk.
     // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
     off_t chunk_size = tf->size / NUM_CHUNKS;                               // The chunk size.
-    off_t offset = chunk_size * NUM_CHUNKS-1;                               // The start of the last chunk.
+    off_t offset = chunk_size * (NUM_CHUNKS-1);                               // The start of the last chunk.
     off_t size = tf->size - offset;                                         // The size of the last chunk.
     md5_hash(fd, offset, size, c_hashes[NUM_CHUNKS-1]);                     // Calculate the hash.
 

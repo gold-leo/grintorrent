@@ -1,5 +1,12 @@
 #include "../src/file.h"
+#include <openssl/md5.h>
 #include <stdio.h>
+void print_hash(unsigned char hash[MD5_DIGEST_LENGTH]) {
+  for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+    printf("%02x", hash[i]);
+  }
+}
+
 
 int main() {
   htable_t ht;
@@ -15,17 +22,18 @@ int main() {
   printf("%s\n", tf->name);
   printf("File size: %ld\n", tf->size);
   printf("Location: %s\n", tf->f_location);
-  printf("File Hash: %016lx", *(uint64_t*)tf->f_hash);
-  printf("%016lx\n", *(((uint64_t*)tf->f_hash) + 1));
+  printf("File Hash: ");
+  print_hash(tf->f_hash);
+  printf("\n");
   printf("Chunk Hashes:\n");
   for (int i = 0; i < NUM_CHUNKS; i++) {
-    printf("%lx", *(uint64_t*)tf->c_hashes[i]);
-    printf("%lx\n", *(((uint64_t*)tf->c_hashes[i]) + 1));
+    print_hash(tf->c_hashes[i]);
+    printf("\n");
   }
 
   void* start_location = NULL;
   void* next_location = NULL;
-  int next_chunk = 7;
+  int next_chunk = 6;
   off_t s_size = chunk_location(&ht, &start_location, tf->f_hash, 0);
   off_t n_size = chunk_location(&ht, &next_location, tf->f_hash, next_chunk);
   if (start_location == NULL | next_location == NULL) {
@@ -36,7 +44,39 @@ int main() {
     printf("Distance between: %ld + %ld = %ld\n", next_location-start_location, n_size, next_location - start_location + n_size);
   }
 
+  char c = *(char*)next_location;
   printf("Verification result: %x\n", verify_tfile(&ht, tf->f_hash));
+  *(char*)next_location = 'A';
+  printf("Changed starting character of chunk %d to %c\n", next_chunk, *(char*)next_location);
+  printf("Verification result after edit: %x\n", verify_tfile(&ht, tf->f_hash));
+  *(char*)next_location = c;
+
+
+  // printf("\n");
+
+  // tfile_def_t tdef = {
+  //   .name = "Empty file test",
+  //   .f_hash = "0123456789abcde",
+  //   .c_hashes = {"qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg", "qwertyuiopasdfg"},
+  //   .size = 1024
+  // };
+
+  // unsigned char hash[MD5_DIGEST_LENGTH] = "0123456789abcde";
+  // tfile_t* tfd = add_tfile(&ht, tdef);
+  // printf("%s\n", tfd->name);
+  // printf("File size: %ld\n", tfd->size);
+  // printf("Location: %s\n", tfd->f_location);
+  // printf("File Hash: ");
+  // print_hash(tfd->f_hash);
+  // printf("\n");
+  // printf("Chunk Hashes:\n");
+  // for (int i = 0; i < NUM_CHUNKS; i++) {
+  //   print_hash(tfd->c_hashes[i]);
+  //   printf("\n");
+  // }
+  // printf("Verification result: %02x\n", verify_tfile(&ht, hash));
+
+
 
   return 0;
 }

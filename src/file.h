@@ -28,7 +28,7 @@ typedef struct {
   unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
   // Full file location
   char* f_location;
-  // Memory location of the file;
+  // Memory location of the file
   void* m_location;
 
   // Potentially add a peer availability list if there's enough time.
@@ -54,13 +54,15 @@ typedef struct {
 } htable_t;
 
 /* --- Function Declarations --- */
+// Htable.c
 void init_htable(htable_t*);
 int resize_htable(htable_t*);
 tfile_t* locate_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 tfile_t* add_htable(htable_t*, tfile_t);
 tfile_t* search_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 
-int file_hash(char*, unsigned char*);
+// File.c
 tfile_t* new_tfile(htable_t*, char*, char name[NAME_LEN]);
 unsigned char verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 off_t chunk_location(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);
+tfile_t* add_tfile(htable_t*, tfile_def_t);
