@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
   const char* hostname[45];
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(struct sockaddr_in);
-  
+
 
   // Hash table of the tfiles.
   htable_t ht;
@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
 
       // Recieve from peer the hostname of this client
       // For now, just memcpy the hostname.
-      memcpy(hostname, , unsigned long)
+      // memcpy(hostname, , unsigned long)
 
       // Create thread for peer
       // pthread_t t;

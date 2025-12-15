@@ -12,8 +12,8 @@ grintorrent: grintorrent.c ui.c ui.h
 file_test: ./src/file.h ./tests/file_test.c ./src/file.c ./src/htable.c
 	$(CC) $(CFLAGS) -Wno-deprecated-declarations -o file_test ./tests/file_test.c ./src/file.c ./src/htable.c -lform -lncurses -lpthread -lcrypto -lm
 
-client_test: ./src/client.c ./src/socket.h
-	$(CC) $(CFLAGS) -o client_test ./src/client.c
+client_test: ./src/client.c ./src/file.h ./src/socket.h ./src/htable.c ./src/file.c
+	$(CC) $(CFLAGS) -Wno-deprecated-declarations -o client_test ./src/client.c ./src/htable.c ./src/file.c -lcrypto
 
 zip:
 	@echo "Generating grintorrent.zip file to submit to Gradescope..."
