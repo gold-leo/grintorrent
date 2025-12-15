@@ -62,7 +62,7 @@ static int socket_connect(char* server_name, unsigned short port) {
  * \returns   A file descriptor for the connected socket, or -1 if there is an
  *            error. The errno value will be set by the failed POSIX call.
  */
-static int socket_connect(sockaddr_in server_addr, socklen_t server_addr_len) {
+static int socket_connect_addr(struct sockaddr_in server_addr, socklen_t server_addr_len) {
   // Open a socket
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd == -1) {
@@ -158,7 +158,7 @@ static int server_socket_accept(int server_socket_fd) {
  * \returns   The file descriptor for the newly-connected client socket. In case
  *            of failure, returns -1 with errno set by the failed accept call.
  */
-static int server_socket_accept(int server_socket_fd, sockaddr_in* peer_addr, socklen_t* peer_addr_len) {
+static int server_socket_accept_addr(int server_socket_fd, struct sockaddr_in* peer_addr, socklen_t* peer_addr_len) {
   // Create a struct to record the connected client's address
   socklen_t client_addr_len = sizeof(struct sockaddr_in);
 
