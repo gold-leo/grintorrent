@@ -1,5 +1,9 @@
 There are two sides of the project: the file side and the client side.
 
+WHAT IS A TFILE (TORRENT FILE): tfile_def refers to the struct which describes a file which a PEER may have on the network.
+on the other hand the tfile_t struct is INTERNAL, only used for storing a tfile_def and corresponding location pointers to the REAL file.
+If you are working on the CLIENT SIDE, all you need to pay attention to is the tfile_def_t.
+
 
 FILE SIDE:
   The file side handles all the details with the file storage and file chunks. That way the client side doesn't have to think about all that.
