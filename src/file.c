@@ -72,19 +72,17 @@ int generate_tfile(htable_t* htable, tfile_def_t* tdef, char* file_path, char na
     return -1;
   }
 
+  // Generate the file hash
   md5_hash(fd, 0, buf.st_size, tdef->f_hash);
 
-  tfile_t* ntf = locate_htable(htable, tdef->f_hash);
-  if (ntf == NULL) {
+  // Check if already in hash table
+  tfile_t* t = search_htable(htable, tdef->f_hash);
+  if (t != NULL) {
     perror("File already has a torrent file");
     return -1;
   }
 
-  // Copy the hash into the tfile.
-  memcpy(ntf->f_hash, tdef->f_hash, MD5_DIGEST_LENGTH);
-
-  // Copy the size of the file into the tfile.
-  ntf->size = buf.st_size;
+  // Copy the size
   tdef->size = buf.st_size;
 
   // Set the chunk size. The very last chunk will vary in size.
@@ -94,49 +92,39 @@ int generate_tfile(htable_t* htable, tfile_def_t* tdef, char* file_path, char na
   // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
   off_t offset = c_size * (NUM_CHUNKS-1);                               // The start of the chunk.
   off_t size = buf.st_size - offset;                                   // The size of the chunk.
-  md5_hash(fd, offset, size, ntf->c_hashes[NUM_CHUNKS-1]);             // Calculate the hash.
-  memcpy(tdef->c_hashes[NUM_CHUNKS-1], ntf->c_hashes[NUM_CHUNKS-1], MD5_DIGEST_LENGTH);
+  md5_hash(fd, offset, size, tdef->c_hashes[NUM_CHUNKS-1]);             // Calculate the hash.
 
   // Loop for the other chunks.
   for (int i = 0; i < NUM_CHUNKS-1; i++) {
     offset = i * c_size;
-    md5_hash(fd, offset, c_size, ntf->c_hashes[i]);
-    memcpy(tdef->c_hashes[i], ntf->c_hashes[i], MD5_DIGEST_LENGTH);
+    md5_hash(fd, offset, c_size, tdef->c_hashes[i]);
   }
 
   // Close the file.
   close(fd);
 
   // Copy the name into the tfile
-  memcpy(ntf->name, name, NAME_LEN);
   memcpy(tdef->name, name, NAME_LEN);
-  // Copy the file path into the tfile.
-  // tfile is now the owner of the string.
-  // DO NOT free the string.
-  int len = strlen(file_path);
-  ntf->f_location = malloc(len);
-  memcpy(ntf->f_location, file_path, len);
 
-  // Set all chunk locations to NULL
-  // (we haven't loaded the file into memory yet)
-  ntf->m_location = NULL;
+  t = add_htable(htable, *tdef);
+
+  // Set file and memory locations
+  int len = strlen(file_path);
+  t->f_location = malloc(len);
+  memcpy(t->f_location, file_path, len);
+  t->m_location = NULL;
 
   return 0;
 }
 
 // Add an existing tfile (likely from a peer) to the hash table.
 tfile_t* add_tfile(htable_t* ht, tfile_def_t tfile_def) {
-  tfile_t* tfile = locate_htable(ht, tfile_def.f_hash);
+  tfile_t* tfile = add_htable(ht, tfile_def);
   if (tfile == NULL) {
     return NULL;
   }
 
-  tfile->size = tfile_def.size;
-  memcpy(tfile->name, tfile_def.name, NAME_LEN);
-  memcpy(tfile->f_hash, tfile_def.f_hash, MD5_DIGEST_LENGTH);
-  for (int i = 0; i < NUM_CHUNKS; i++) {
-    memcpy(tfile->c_hashes[i], tfile_def.c_hashes[i], MD5_DIGEST_LENGTH);
-  }
+  // Set the file and memory locations
   tfile->f_location = NULL;
   tfile->m_location = NULL;
 
@@ -148,19 +136,15 @@ tfile_t* add_tfile(htable_t* ht, tfile_def_t tfile_def) {
 int list_tfiles(htable_t* ht, tfile_def_t** tf_list) {
   *tf_list = malloc(ht->size * sizeof(tfile_t));
   // Loop until we reach the end or there are no more tfiles
-  for (int i = 0, j = 0; i < ht->capacity | j < ht->size; i++) {
+  int j = 0;
+  for (int i = 0; i < ht->capacity && j < ht->size; i++) {
     tfile_t* tf = ht->table + i;
-    if (tf->size > 0) {
-      tfile_def_t* l_tf = (*tf_list) + j;
-      l_tf->size = tf->size;
-      memcpy(l_tf->name, tf->name, NAME_LEN);
-      memcpy(l_tf->f_hash, tf->f_hash, MD5_DIGEST_LENGTH);
-      for (int k = 0; k < NUM_CHUNKS; k++) {
-        memcpy(l_tf->c_hashes[k], tf->c_hashes[k], MD5_DIGEST_LENGTH);
-      }
+    if (tf->tdef.size > 0) {
+      memcpy(*tf_list + j, &tf->tdef, sizeof(tfile_def_t));
+      j++;
     }
   }
-  return ht->size;
+  return j;
 }
 
 // Open a tfile in memory to be read or written to.
@@ -182,7 +166,7 @@ off_t open_tfile(htable_t* htable, void** location, unsigned char hash[MD5_DIGES
     // If we dont have a file already, create it.
     // The name and location are the current working directory and the name of the specified file. (name must include file extension)
     if (tf->f_location == NULL) {
-      tf->f_location = tf->name;
+      tf->f_location = tf->tdef.name;
     }
     int fd = open(tf->f_location, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
     if (fd == -1) {
@@ -190,8 +174,8 @@ off_t open_tfile(htable_t* htable, void** location, unsigned char hash[MD5_DIGES
       return -1;
     }
     // Set the size to be equal to the tfile specification
-    ftruncate(fd, tf->size);
-    void* m_location = mmap(NULL, (size_t)tf->size, PROT_WRITE, MAP_SHARED, fd, 0);  // Converting a signed long to an unsigned long might be a bad idea
+    ftruncate(fd, tf->tdef.size);
+    void* m_location = mmap(NULL, (size_t)tf->tdef.size, PROT_WRITE, MAP_SHARED, fd, 0);  // Converting a signed long to an unsigned long might be a bad idea
     if (m_location == MAP_FAILED) {
       perror("Could not create a memory-mapped location for the file");
       return -1;
@@ -201,14 +185,14 @@ off_t open_tfile(htable_t* htable, void** location, unsigned char hash[MD5_DIGES
   }
 
   // Calculate the chunk size.
-  off_t chunk_size = tf->size / NUM_CHUNKS;
+  off_t chunk_size = tf->tdef.size / NUM_CHUNKS;
 
   // Assign <location> to the starting point of the chunk.
   *location = (chunk * chunk_size) + (char*)tf->m_location;
 
   // If it's the last chunk, recalculate the chunk size
   if (chunk == NUM_CHUNKS-1) {
-    chunk_size = tf->size - (chunk * chunk_size);
+    chunk_size = tf->tdef.size - (chunk * chunk_size);
   }
 
   return chunk_size;
@@ -216,7 +200,7 @@ off_t open_tfile(htable_t* htable, void** location, unsigned char hash[MD5_DIGES
 
 // Save a tfile to storage and free the memory region.
 int save_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGTH]) {
-  tfile_t* tf = locate_htable(ht, hash);
+  tfile_t* tf = search_htable(ht, hash);
   if (tf == NULL) {
     return -1;
   }
@@ -225,8 +209,8 @@ int save_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGTH]) {
   }
 
   // Synchronize the memory-mapped region immediately, then close the region.
-  msync(tf->m_location, tf->size, MS_SYNC);
-  if (!munmap(tf->m_location, tf->size)) {
+  msync(tf->m_location, tf->tdef.size, MS_SYNC);
+  if (!munmap(tf->m_location, tf->tdef.size)) {
     perror("Could not unmap memory");
     return -1;
   }
@@ -248,14 +232,14 @@ verified_chunks_t verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGT
   if (tf->m_location != NULL) {
     // Check the entire file hash first
     unsigned char test_hash[MD5_DIGEST_LENGTH];
-    MD5((unsigned char*)tf->m_location, (size_t)tf->size, test_hash);
+    MD5((unsigned char*)tf->m_location, (size_t)tf->tdef.size, test_hash);
 
     // Compare the file hash with the specified tfile hash.
     uint64_t th1 = *(uint64_t*)test_hash;
     uint64_t th2 = *(((uint64_t*)test_hash) + 1);
 
-    uint64_t fh1 = *(uint64_t*)tf->f_hash;
-    uint64_t fh2 = *(((uint64_t*)tf->f_hash) + 1);
+    uint64_t fh1 = *(uint64_t*)tf->tdef.f_hash;
+    uint64_t fh2 = *(((uint64_t*)tf->tdef.f_hash) + 1);
 
     // If f is fully verified, we can stop here.
     if (th1 == fh1 && th2 == fh2) {
@@ -263,12 +247,12 @@ verified_chunks_t verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGT
     }
 
     // Chunk size
-    off_t chunk_size = tf->size / NUM_CHUNKS;
+    off_t chunk_size = tf->tdef.size / NUM_CHUNKS;
 
     // Calculate the hashes for each chunk.
     // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
     unsigned char* offset = (unsigned char*)tf->m_location + (chunk_size * (NUM_CHUNKS-1));      // The start of the chunk.
-    off_t size = tf->size - (chunk_size * (NUM_CHUNKS-1));                                       // The size of the chunk.
+    off_t size = tf->tdef.size - (chunk_size * (NUM_CHUNKS-1));                                       // The size of the chunk.
     MD5(offset, size, c_hashes[NUM_CHUNKS-1]);                                                   // The hash of the last chunk.
 
     // Loop for the other chunks.
@@ -294,8 +278,8 @@ verified_chunks_t verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGT
     uint64_t th1 = *(uint64_t*)test_hash;
     uint64_t th2 = *(((uint64_t*)test_hash) + 1);
 
-    uint64_t fh1 = *(uint64_t*)tf->f_hash;
-    uint64_t fh2 = *(((uint64_t*)tf->f_hash) + 1);
+    uint64_t fh1 = *(uint64_t*)tf->tdef.f_hash;
+    uint64_t fh2 = *(((uint64_t*)tf->tdef.f_hash) + 1);
 
     // File is fully verified if the hashes match. We can stop here.
     if (th1 == fh1 && th2 == fh2) {
@@ -307,9 +291,9 @@ verified_chunks_t verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGT
 
     // Calculate the hashes for each chunk.
     // We calculate the LAST chunk FIRST because the chunk is not a fixed size.
-    off_t chunk_size = tf->size / NUM_CHUNKS;                               // The chunk size.
+    off_t chunk_size = tf->tdef.size / NUM_CHUNKS;                               // The chunk size.
     off_t offset = chunk_size * (NUM_CHUNKS-1);                             // The start of the last chunk.
-    off_t size = tf->size - offset;                                         // The size of the last chunk.
+    off_t size = tf->tdef.size - offset;                                         // The size of the last chunk.
     md5_hash(fd, offset, size, c_hashes[NUM_CHUNKS-1]);                     // Calculate the hash.
 
     // Loop for the other chunks.
@@ -328,8 +312,8 @@ verified_chunks_t verify_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGT
   for (int i = 0; i < NUM_CHUNKS; i++) {
     t1 = *(uint64_t*)c_hashes[i];
     t2 = *(((uint64_t*)c_hashes[i]) + 1);
-    c1 = *(uint64_t*)tf->c_hashes[i];
-    c2 = *(((uint64_t*)tf->c_hashes[i]) + 1);
+    c1 = *(uint64_t*)tf->tdef.c_hashes[i];
+    c2 = *(((uint64_t*)tf->tdef.c_hashes[i]) + 1);
     verified_chunks = verified_chunks | ((t1 == c1 && t2 == c2) << (NUM_CHUNKS-1 - i));
   }
   return verified_chunks;

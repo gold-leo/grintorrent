@@ -15,7 +15,7 @@ int main() {
   // Creating a new tfile using a new file you already have ownership of.
   // Will return NULL if the hash is already in the table, or if it fails.
   tfile_def_t tf;
-  if (!generate_tfile(&ht, &tf, "./tests/sample.txt", "Test for file setup")) {
+  if (-1 == generate_tfile(&ht, &tf, "./tests/sample.txt", "Test for file setup")) {
     printf("generating tfile failed");
   }
 
@@ -64,20 +64,37 @@ int main() {
 
   unsigned char hash[MD5_DIGEST_LENGTH] = "0123456789abcde";
   tfile_t* tfd = add_tfile(&ht, tdef);
-  printf("%s\n", tfd->name);
-  printf("File size: %ld\n", tfd->size);
+  printf("%s\n", tfd->tdef.name);
+  printf("File size: %ld\n", tfd->tdef.size);
   printf("Location: %s\n", tfd->f_location);
   printf("File Hash: ");
-  print_hash(tfd->f_hash);
+  print_hash(tfd->tdef.f_hash);
   printf("\n");
   printf("Chunk Hashes:\n");
   for (int i = 0; i < NUM_CHUNKS; i++) {
-    print_hash(tfd->c_hashes[i]);
+    print_hash(tfd->tdef.c_hashes[i]);
     printf("\n");
   }
   printf("Verification result: %02x\n", verify_tfile(&ht, hash));
+  printf("\n");
 
-
+  // Testing the list_tfiles
+  tfile_def_t* tfile_list = NULL;
+  int list_size = list_tfiles(&ht, &tfile_list);
+  printf("Size of list: %d\n", list_size);
+  for (int i = 0; i < list_size; i++) {
+    printf("Name: %s\n", tfile_list[i].name);
+    printf("File size: %ld\n", tfile_list[i].size);
+    printf("File hash: ");
+    print_hash(tfile_list[i].f_hash);
+    printf("\n");
+    printf("Chunk Hashes:\n");
+    for (int j = 0; j < NUM_CHUNKS; j++) {
+      print_hash(tfile_list[i].c_hashes[j]);
+      printf("\n");
+    }
+    printf("\n");
+  }
 
   return 0;
 }

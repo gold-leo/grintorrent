@@ -16,23 +16,6 @@
 // Holds information on which chunks are verified (match their respective hash).
 typedef uint8_t verified_chunks_t;
 
-// Struct which stores the location data of a tfile.
-// Used exclusively for the hash table, not to be shared between peers.
-typedef struct {
-  // Name of the file
-  char name[NAME_LEN];
-  // Size of the file in bytes
-  off_t size;
-  // Hash of the entire file
-  unsigned char f_hash[MD5_DIGEST_LENGTH];
-  // Hashes of the chunks
-  unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
-  // Location of the file in storage
-  char* f_location;
-  // Location of the file if it is loaded into memory
-  void* m_location;
-} tfile_t;
-
 // Struct which defines a torrent file (tfile). For EXTERNAL use between peers.
 typedef struct {
   // Name of the file
@@ -45,6 +28,17 @@ typedef struct {
   off_t size;
 } tfile_def_t;
 
+// Struct which stores the location data of a tfile.
+// Used exclusively for the hash table, not to be shared between peers.
+typedef struct {
+  // Definition of the tfile.
+  tfile_def_t tdef;
+  // Location of the file in storage
+  char* f_location;
+  // Location of the file if it is loaded into memory
+  void* m_location;
+} tfile_t;
+
 // Hash table for tfiles.
 typedef struct {
   size_t capacity;
@@ -56,8 +50,7 @@ typedef struct {
 // htable.c
 void init_htable(htable_t*);
 int resize_htable(htable_t*);
-tfile_t* locate_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
-tfile_t* add_htable(htable_t*, tfile_t);
+tfile_t* add_htable(htable_t*, tfile_def_t);
 tfile_t* search_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 
 // file.c
