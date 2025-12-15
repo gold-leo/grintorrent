@@ -4,7 +4,7 @@ CFLAGS := -g -Wall -Werror -Wno-unused-function -Wno-unused-variable
 all: grintorrent
 
 clean:
-	rm -f grintorrent
+	rm -f grintorrent file_test
 
 grintorrent: grintorrent.c ui.c ui.h
 	$(CC) $(CFLAGS) -o grintorrent grintorrent.c ui.c -lform -lncurses -lpthread -lcrypto -lm

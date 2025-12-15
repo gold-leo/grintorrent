@@ -73,4 +73,4 @@ verified_chunks_t verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH])
 // <chunk> starts at 0!! (e.x. 0-7 assuming 8 chunks)
 off_t open_tfile(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);
 // Save a tfile to storage and free the memory region.
-int close_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
+int save_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);

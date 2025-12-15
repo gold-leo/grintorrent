@@ -50,6 +50,10 @@ int main() {
   printf("Changed starting character of chunk %d to %c\n", next_chunk, *(char*)next_location);
   printf("Verification result after edit: %x\n", verify_tfile(&ht, tf.f_hash));
   *(char*)next_location = c;
+  save_tfile(&ht, tf.f_hash);
+
+  tfile_t* t = search_htable(&ht, tf.f_hash);
+
 
 
   // Now test adding a tfile_def to the hash table.

@@ -209,8 +209,11 @@ int save_tfile(htable_t* ht, unsigned char hash[MD5_DIGEST_LENGTH]) {
   }
 
   // Synchronize the memory-mapped region immediately, then close the region.
-  msync(tf->m_location, tf->tdef.size, MS_SYNC);
-  if (!munmap(tf->m_location, tf->tdef.size)) {
+  if (msync(tf->m_location, tf->tdef.size, MS_SYNC)) {
+    perror("Could not sync memory");
+    return -1;
+  }
+  if (munmap(tf->m_location, tf->tdef.size)) {
     perror("Could not unmap memory");
     return -1;
   }

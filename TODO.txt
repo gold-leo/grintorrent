@@ -5,22 +5,39 @@ FILE SIDE:
   The file side handles all the details with the file storage and file chunks. That way the client side doesn't have to think about all that.
   I am mostly working on the file side and will have it finished soon.
 
-  Test that chunk_location() works properly.
-    chunk_location() is used for uploading or downloading files.
-    When you want to upload a chunk, call chunk_location(). Same for downloading a chunk.
+  Test that open_tfile() works properly.
+    open_tfile() is used for uploading or downloading files.
+    When you want to upload a chunk, call open_tfile(). Same for downloading a chunk.
     chunk_location returns a pointer to a memory-mapped space (basically a space in memory linked to the file).
     If downloading, just write to that pointer. If uploading, just read from it.
-    Once you are done, make sure to chunk_close().
+    Once you are done, make sure to close_tfile().
+
+  FILE.C and FILE.H HAVE BEEN OFFCIALLY COMPLETED. (Still needs more testing, but should work)
+
+  What does file.h have?
+    file.h contains the tfile and tfile_def struct.
+    the tfile_def struct contains all the information about a file for the purposes of sharing.
+    tfile struct is for storing the location data of the file. If a client doesnt have the file,
+    the pointers stored in tfile are NULL.
+
+  What does file.c do?
+    file.c manages the math for calculating hashes, finding the locations for the start and end of chunks,
+    and manages adding and removing
+
+  Functions:
+    generate_tfile(): Generate a NEW tfile from an existing file on the client's computer.
+
+    add_tfile():      Add a tfile to the list of tfiles.
+
+    list_tfiles();    List all the tfiles in an array (including tfiles of files the client doesn't have).
+
+    verify_tfile()    Given a tfile, check which chunks the client currently has.
+
+    open_tfile()      Opens a tfile in memory. (If the client has the file, it is opened in memory. If not, a new file is created).
+
+    save_tfile();     Saves and closes a file if it is opened. ^^
 
 
-  Next things to make:
-  Close the mmap pointers
-   - Check if pointers exist
-   - If they do, unmmap/save
-   - NULL the pointers
-  Return a pointer to the start of a tfile_def array.
-   - Index through hash table
-   - Convert all tfiles to tfile_defs
 
 
 CLIENT SIDE:
