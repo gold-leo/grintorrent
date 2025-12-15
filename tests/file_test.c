@@ -34,8 +34,8 @@ int main() {
   void* start_location = NULL;
   void* next_location = NULL;
   int next_chunk = 5;
-  off_t s_size = chunk_location(&ht, &start_location, tf.f_hash, 0);
-  off_t n_size = chunk_location(&ht, &next_location, tf.f_hash, next_chunk);
+  off_t s_size = open_file(&ht, &start_location, tf.f_hash, 0);
+  off_t n_size = open_file(&ht, &next_location, tf.f_hash, next_chunk);
   if (start_location == NULL | next_location == NULL) {
     printf("Memory mapping failed :(\n");
   } else {

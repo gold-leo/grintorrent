@@ -10,40 +10,38 @@
 // The permissible length of a name.
 #define NAME_LEN 32
 
-// The value which defines a vully verified file.
+// The value which defines a fully verified file.
 #define VERIFIED_FILE 0xFF
 #define UNVERIFIED_FILE 0x00
 // Holds information on which chunks are verified (match their respective hash).
 typedef uint8_t verified_chunks_t;
-typedef unsigned char* hash_t[MD5_DIGEST_LENGTH];
 
-// Struct which describes a torrent file (tfile). For INTERNAL use by clients.
+// Struct which stores the location data of a tfile.
+// Used exclusively for the hash table, not to be shared between peers.
 typedef struct {
   // Name of the file
   char name[NAME_LEN];
-  // Size of the file.
+  // Size of the file in bytes
   off_t size;
-  // Hash of the entire file.
+  // Hash of the entire file
   unsigned char f_hash[MD5_DIGEST_LENGTH];
-  // Hashes of the chunks.
+  // Hashes of the chunks
   unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
-  // Full file location
+  // Location of the file in storage
   char* f_location;
-  // Memory location of the file
+  // Location of the file if it is loaded into memory
   void* m_location;
-
-  // Potentially add a peer availability list if there's enough time.
 } tfile_t;
 
 // Struct which defines a torrent file (tfile). For EXTERNAL use between peers.
 typedef struct {
   // Name of the file
   char name[NAME_LEN];
-  // Hash of the entire file.
+  // Hash of the entire file
   unsigned char f_hash[MD5_DIGEST_LENGTH];
-  // Hashes of the chunks.
+  // Hashes of the chunks
   unsigned char c_hashes[NUM_CHUNKS][MD5_DIGEST_LENGTH];
-  // Size of the file
+  // Size of the file in bytes
   off_t size;
 } tfile_def_t;
 
@@ -64,6 +62,7 @@ tfile_t* search_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 
 // File.c
 int new_tfile(htable_t*, tfile_def_t*, char*, char name[NAME_LEN]);
-unsigned char verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
-off_t chunk_location(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);
+verified_chunks_t verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
+off_t open_file(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);
+int close_file(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 tfile_t* add_tfile(htable_t*, tfile_def_t);
