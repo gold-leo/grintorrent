@@ -53,16 +53,31 @@ typedef struct {
 } htable_t;
 
 /* --- Function Declarations --- */
-// Htable.c
+// htable.c
 void init_htable(htable_t*);
 int resize_htable(htable_t*);
 tfile_t* locate_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 tfile_t* add_htable(htable_t*, tfile_t);
 tfile_t* search_htable(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
 
-// File.c
-int new_tfile(htable_t*, tfile_def_t*, char*, char name[NAME_LEN]);
-verified_chunks_t verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
-off_t open_file(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);
-int close_file(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
+// file.c
+
+// Generate a completely new tfile based off of an existing file on the clients' computer.
+// The tfile is added to the hash table.
+int generate_tfile(htable_t*, tfile_def_t*, char*, char name[NAME_LEN]);
+// Add an existing tfile (likely from a peer) to the hash table.
 tfile_t* add_tfile(htable_t*, tfile_def_t);
+// Generate a list of all the tfiles in the hash table.
+// Returns the number of tfiles reported.
+int list_tfiles(htable_t*, tfile_def_t**);
+
+// Returns the chunks of a tfile which are verified.
+verified_chunks_t verify_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);
+
+// Open a tfile in memory to be read or written to.
+// If there is not already a file, the file is created in the working directory.
+// Sets <location> to the beginning of the specified <chunk>.
+// <chunk> starts at 0!! (e.x. 0-7 assuming 8 chunks)
+off_t open_tfile(htable_t*, void**, unsigned char hash[MD5_DIGEST_LENGTH], int);
+// Save a tfile to storage and free the memory region.
+int close_tfile(htable_t*, unsigned char hash[MD5_DIGEST_LENGTH]);

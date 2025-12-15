@@ -15,7 +15,7 @@ int main() {
   // Creating a new tfile using a new file you already have ownership of.
   // Will return NULL if the hash is already in the table, or if it fails.
   tfile_def_t tf;
-  if (!new_tfile(&ht, &tf, "./tests/sample.txt", "Test for file setup")) {
+  if (!generate_tfile(&ht, &tf, "./tests/sample.txt", "Test for file setup")) {
     printf("generating tfile failed");
   }
 
@@ -33,9 +33,9 @@ int main() {
 
   void* start_location = NULL;
   void* next_location = NULL;
-  int next_chunk = 5;
-  off_t s_size = open_file(&ht, &start_location, tf.f_hash, 0);
-  off_t n_size = open_file(&ht, &next_location, tf.f_hash, next_chunk);
+  int next_chunk = 4;
+  off_t s_size = open_tfile(&ht, &start_location, tf.f_hash, 0);
+  off_t n_size = open_tfile(&ht, &next_location, tf.f_hash, next_chunk);
   if (start_location == NULL | next_location == NULL) {
     printf("Memory mapping failed :(\n");
   } else {
