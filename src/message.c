@@ -3,11 +3,8 @@
 #include <unistd.h>
 
 int send_message(int fd, message_info_t* info, void* data) {
-  if (write(fd, &info->type, sizeof(message_type_t)) != sizeof(message_type_t)) {
-    return FAILED;
-  }
-
-  if (write(fd, &info->size, sizeof(size_t)) != sizeof(size_t)) {
+  size_t s = sizeof(message_info_t);
+  if (write(fd, info, sizeof(message_info_t)) != sizeof(message_info_t)) {
     return FAILED;
   }
 
@@ -29,6 +26,9 @@ int send_message(int fd, message_info_t* info, void* data) {
 }
 
 int receive_message(int fd, void* data, size_t size) {
+  if (data == NULL) {
+    size = 0;
+  }
   message_type_t type;
   if (read(fd, &type, sizeof(message_type_t)) != sizeof(message_type_t)) {
     // Reading failed. Return an error
@@ -54,7 +54,6 @@ int receive_message(int fd, void* data, size_t size) {
 
     // Did the read fail? If so, return an error
     if (rc <= 0) {
-      free(data);
       return FAILED;
     }
 
@@ -66,7 +65,7 @@ int receive_message(int fd, void* data, size_t size) {
   ssize_t extra_data = m_size - bytes_read;
   if (extra_data) {
     ssize_t bytes_discarded = 0;
-    while (bytes_discarded < extra_data) {
+    while (bytes_discarded <= extra_data) {
       // This flag causes the received bytes of data to be discarded,
       // rather than passed back in a caller-supplied buffer.
       // https://man7.org/linux/man-pages/man7/tcp.7.html
@@ -74,11 +73,12 @@ int receive_message(int fd, void* data, size_t size) {
     }
   }
 
-  return type;
+  return SUCCESS;
 }
 
-int incoming_message_info(int fd, message_info_t info) {
-  if (recv(fd, &info, sizeof(message_info_t), MSG_PEEK) != sizeof(message_info_t)) {
+int incoming_message_info(int fd, message_info_t* info) {
+  size_t s = sizeof(message_info_t);
+  if (recv(fd, info, sizeof(message_info_t), MSG_PEEK) != sizeof(message_info_t)) {
     return FAILED;
   }
   return SUCCESS;

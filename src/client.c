@@ -1,11 +1,3 @@
-// This is where all the client code will be stored.
-// TODO:
-// -
-// Address to a peer
-// typedef struct {
-//   char host[45]; // Length of a host address is 45 chars for ip, but the length of mathLAN computer should be checked.
-//   int socket;
-// } address_t;
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,7 +49,7 @@ void remove_peer(peers_t* peers, peer_fd_t peer) {
 // ----Main loop----
 int main(int argc, char** argv) {
   if (argc != 2 && argc != 4) {
-      fprintf(stderr, "Usage:\n%s [<peer> <port number>] <your address>\n%s host <your address>\n", argv[0], argv[0]);
+      fprintf(stderr, "Usage:\n%s [<peer> <port number>]\n%s host <your address>\n", argv[0], argv[0]);
       exit(1);
   }
 
@@ -87,7 +79,6 @@ int main(int argc, char** argv) {
   const char* hostname[45];
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(struct sockaddr_in);
-
 
   // Hash table of the tfiles.
   htable_t ht;

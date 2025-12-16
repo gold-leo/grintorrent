@@ -15,6 +15,9 @@ file_test: ./src/file.h ./tests/file_test.c ./src/file.c ./src/htable.c
 client_test: ./src/client.c ./src/file.h ./src/socket.h ./src/htable.c ./src/file.c
 	$(CC) $(CFLAGS) -Wno-deprecated-declarations -o client_test ./src/client.c ./src/htable.c ./src/file.c -lcrypto
 
+message_test: ./src/message.h ./src/message.c ./src/socket.h ./tests/message_test.c
+	$(CC) $(CFLAGS) -o message_test ./tests/message_test.c ./src/message.c
+
 zip:
 	@echo "Generating grintorrent.zip file to submit to Gradescope..."
 	@zip -q -r grintorrent.zip . -x .git/\* .vscode/\* .clang-format .gitignore grintorrent

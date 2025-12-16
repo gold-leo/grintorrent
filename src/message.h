@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sys/socket.h>
+// Unused for now...
 #define MAX_MESSAGE_LENGTH 2048
 
 // Types of messages (stored in header data)
@@ -29,4 +30,4 @@ int send_message(int fd, message_info_t* info, void* data);
 int receive_message(int fd, void* data, size_t size);
 
 // Get the oncoming message's info.
-int incoming_message_info(int fd, message_info_t info);
+int incoming_message_info(int fd, message_info_t* info);
