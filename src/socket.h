@@ -1,6 +1,8 @@
 #if !defined(SOCKET_H)
 #define SOCKET_H
 
+#include <unistd.h>
+#include <string.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -43,6 +45,32 @@ static int socket_connect(char* server_name, unsigned short port) {
 
   // Connect to the server
   if (connect(fd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in))) {
+    close(fd);
+    return -1;
+  }
+
+  return fd;
+}
+
+/**
+ * Create a new socket and connect to a server.
+ *
+ * \param server_name   A null-terminated string that specifies either the IP
+ *                      address or host name of the server to connect to.
+ * \param port          The port number the server should be listening on.
+ *
+ * \returns   A file descriptor for the connected socket, or -1 if there is an
+ *            error. The errno value will be set by the failed POSIX call.
+ */
+static int socket_connect_addr(struct sockaddr_in server_addr, socklen_t server_addr_len) {
+  // Open a socket
+  int fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (fd == -1) {
+    return -1;
+  }
+
+  // Connect to the server
+  if (connect(fd, (struct sockaddr*)&server_addr, server_addr_len)) {
     close(fd);
     return -1;
   }
@@ -113,6 +141,29 @@ static int server_socket_accept(int server_socket_fd) {
 
   // Block until we receive a connection or failure
   int client_socket_fd = accept(server_socket_fd, (struct sockaddr*)&client_addr, &client_addr_len);
+
+  // Did something go wrong?
+  if (client_socket_fd == -1) {
+    return -1;
+  }
+
+  return client_socket_fd;
+}
+
+/**
+ * Accept an incoming connection on a server socket.
+ *
+ * \param server_socket_fd  The server socket that should accept the connection.
+ *
+ * \returns   The file descriptor for the newly-connected client socket. In case
+ *            of failure, returns -1 with errno set by the failed accept call.
+ */
+static int server_socket_accept_addr(int server_socket_fd, struct sockaddr_in* peer_addr, socklen_t* peer_addr_len) {
+  // Create a struct to record the connected client's address
+  socklen_t client_addr_len = sizeof(struct sockaddr_in);
+
+  // Block until we receive a connection or failure
+  int client_socket_fd = accept(server_socket_fd, (struct sockaddr*)peer_addr, peer_addr_len);
 
   // Did something go wrong?
   if (client_socket_fd == -1) {

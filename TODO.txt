@@ -1,0 +1,69 @@
+There are two sides of the project: the file side and the client side.
+
+WHAT IS A TFILE (TORRENT FILE): tfile_def refers to the struct which describes a file which a PEER may have on the network.
+on the other hand the tfile_t struct is INTERNAL, only used for storing a tfile_def and corresponding location pointers to the REAL file.
+If you are working on the CLIENT SIDE, all you need to pay attention to is the tfile_def_t.
+
+
+FILE SIDE:
+  The file side handles all the details with the file storage and file chunks. That way the client side doesn't have to think about all that.
+  I am mostly working on the file side and will have it finished soon.
+
+  Test that open_tfile() works properly.
+    open_tfile() is used for uploading or downloading files.
+    When you want to upload a chunk, call open_tfile(). Same for downloading a chunk.
+    chunk_location returns a pointer to a memory-mapped space (basically a space in memory linked to the file).
+    If downloading, just write to that pointer. If uploading, just read from it.
+    Once you are done, make sure to close_tfile().
+
+  FILE.C and FILE.H HAVE BEEN OFFCIALLY COMPLETED. (Still needs more testing, but should work)
+
+  What does file.h have?
+    file.h contains the tfile and tfile_def struct.
+    the tfile_def struct contains all the information about a file for the purposes of sharing.
+    tfile struct is for storing the location data of the file. If a client doesnt have the file,
+    the pointers stored in tfile are NULL.
+
+  What does file.c do?
+    file.c manages the math for calculating hashes, finding the locations for the start and end of chunks,
+    and manages adding and removing
+
+  Functions:
+    generate_tfile(): Generate a NEW tfile from an existing file on the client's computer.
+
+    add_tfile():      Add a tfile to the list of tfiles.
+
+    list_tfiles();    List all the tfiles in an array (including tfiles of files the client doesn't have).
+
+    verify_tfile()    Given a tfile, check which chunks the client currently has.
+
+    open_tfile()      Opens a tfile in memory. (If the client has the file, it is opened in memory. If not, a new file is created).
+
+    save_tfile();     Saves and closes a file if it is opened. ^^
+
+
+
+
+CLIENT SIDE:
+  After some forethought, we cannot use a recursive approach to finding peers with the files we want.
+  This is because we would have to wait for every single peer in the network before we get the result.
+  With multiple people asking for the files at once, each request would cause a multiplicity of slowdowns.
+  Plus, if one peer is not responding, the entire network stops functioning.
+
+  There are two alternatives to the recursive method. The first one is "recursive DNS" (which really means iterative DNS).
+  This is used commonly by DNS servers to find the ip addresses of servers.
+  If you want a file, instead of asking one peer who then asks a peer they are connected to (the recursive approach),
+  the peer we ask just sends us a list of the peers *they* are connected to, and we ask each peer on that list if they have the file themselves.
+  This is the most robust option and can become very efficient, especially if we implemented caching.
+  It would also mean that the network wouldn't have to be a tree anymore.
+  The issue with this approach is that it is complex. It requires some moving parts and is kind of complicated to think about
+  and to implement entirely.
+
+  The other solution is kind of a halfway point. Instead of asking "who has the file?" then choosing people to connect to out of that list, we do the opposite.
+  Instead, we just send out a request for the file and wait/listen for individual responses until we get all of the file. Then we stop listening.
+  First, we create a listening socket. We send a request to our peer for a file, along with our own address and the socket number.
+  That peer checks if they have any part of the file. If they do, they connect to our socket and tell us what chunks they have.
+  If we need the chunks they have, we start to download ONE of those chunks. Our peer then sends our request to all of his connected peers.
+  The process continues from there. If they don't have the file, they forward our request. If they do, they check if we still need any chunks.
+  If we don't, then they don't forward the request.
+  This is the more simple solution, its not as robust but it works just fine and is much much easier to implement.
