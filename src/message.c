@@ -29,21 +29,15 @@ int receive_message(int fd, void* data, size_t size) {
   if (data == NULL) {
     size = 0;
   }
-  message_type_t type;
-  if (read(fd, &type, sizeof(message_type_t)) != sizeof(message_type_t)) {
-    // Reading failed. Return an error
-    return FAILED;
-  }
-
-  size_t m_size;
-  if (read(fd, &m_size, sizeof(size_t)) != sizeof(size_t)) {
+  message_info_t info;
+  if (read(fd, &info, sizeof(message_info_t)) != sizeof(message_info_t)) {
     // Reading failed. Return an error
     return FAILED;
   }
 
   // If size is larger than the message, truncate
-  if (size > m_size) {
-    size = m_size;
+  if (size > info.size) {
+    size = info.size;
   }
 
   // Try to read the message. Loop until the entire message has been read.
@@ -62,7 +56,7 @@ int receive_message(int fd, void* data, size_t size) {
   }
 
   // If there is extra data to read, discard it.
-  ssize_t extra_data = m_size - bytes_read;
+  ssize_t extra_data = info.size - bytes_read;
   if (extra_data) {
     ssize_t bytes_discarded = 0;
     while (bytes_discarded <= extra_data) {
