@@ -7,7 +7,6 @@
 #include "../src/file.h"
 #include "socket.h"
 
-
 #define TORRENT_CHUNK_SIZE 2048
 #define MAX_MESSAGE_LENGTH 2048
 #define SOCKET_CLOSED -1
