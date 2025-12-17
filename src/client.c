@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include "socket.h"
 #include "file.h"
-#include "client.h"
 #include "message.h"
 #include "socket.h"
 
@@ -43,7 +42,8 @@ void print_usage(char **argv);
 void parse_args(cmd_args_t *args, int argc, char **argv);
 void free_args(cmd_args_t args);
 sockdata_t get_address_self(peer_fd_t socket);
-
+void *readWorker(void *args);
+void *connectWorker(void *args);
 // END FUNCTION DEFINITIONS
 
 // Add a peer to peers_t
@@ -87,17 +87,22 @@ bool isInitialized(sockdata_t data)
   return data.server_addr_len;
 }
 
-// HOLDS SELF ADDRESS NAME AND LENGTH
+// GLOBALS
+//  HOLDS SELF ADDRESS NAME AND LENGTH
 sockdata_t self_address;
+
+// Initialize socket/peer file descriptor array
+peers_t peers = {
+    .lock = PTHREAD_MUTEX_INITIALIZER,
+    .capacity = 100,
+    .size = 0};
+// END GLOBALS
 
 // ----Main loop----
 int main(int argc, char **argv)
 {
-  // Initialize socket/peer file descriptor array
-  peers_t peers = {
-      .lock = PTHREAD_MUTEX_INITIALIZER,
-      .capacity = 100,
-      .size = 0};
+
+  // increase peer array
   peers.arr = malloc(peers.capacity * sizeof(peer_fd_t));
 
   // Create server socket
@@ -165,15 +170,11 @@ int main(int argc, char **argv)
 
     add_peer(&peers, host_peer);
 
-    // Recieve from peer the hostname of this client
-    // For now, just memcpy the hostname.
-    // memcpy(hostname, , unsigned long)
+    // read messages using this thread.
+    pthread_t thread;
+    pthread_create(&thread, NULL, readWorker, (void *)&host_peer);
 
-    // Create thread for peer
-    // pthread_t t;
-    // pthread_create(&t, NULL, <thread>, &socket_fd);
-    // pthread_detach(t);
-
+    // save self information
     self_address = get_address_self(host_peer);
   }
   // else
@@ -195,10 +196,18 @@ int main(int argc, char **argv)
     generate_tfile(&ht, &new_tfile, args.file_p, args.file_p);
   }
 
+  // Accept conections from peers
+  pthread_t thread;
+  pthread_create(&thread, NULL, connectWorker, (void *)&server_fd);
+
   free_args(args);
   exit(EXIT_SUCCESS);
 }
 
+/**
+ * This function requests self solcket data from peers
+ * \param socket The peer socket which would be used to get the self hostname
+ */
 sockdata_t get_address_self(peer_fd_t socket)
 {
   message_info_t info = {
@@ -335,4 +344,81 @@ void parse_args(cmd_args_t *args, int argc, char **argv)
       break;
     }
   }
+}
+
+/**
+ * This function is the function called by threads to wait for an incoming connection and creates a new thread to watch it for messages
+ * \param args a void star pointer containing the socket of the client
+ */
+void *connectWorker(void *args)
+{
+  while (true)
+  {
+    // Wait for a client to connect
+    int client_socket_fd = server_socket_accept(*((int *)args));
+    if (client_socket_fd == -1)
+    {
+      perror("accept failed");
+      exit(EXIT_FAILURE);
+    }
+
+    add_peer(&peers, client_socket_fd);
+
+    // initialize self from peer
+    if (!isInitialized(self_address))
+      self_address = get_address_self(client_socket_fd);
+
+    // watch peer for meesages
+    pthread_t thread;
+    pthread_create(&thread, NULL, readWorker, (void *)&client_socket_fd);
+  }
+  return NULL;
+}
+
+/**
+ * This function watches a socket forever until a message is read. That message is then displayed and relayed to all other connected sockets.
+ * \param args a void star pointer holding the id of the client to reaad from.
+ */
+void *readWorker(void *args)
+{
+  int client_socket_fd = *(int *)args;
+  void *data_read;
+
+  while (true)
+  {
+    // get message data
+    message_info_t info;
+
+    if (incoming_message_info(client_socket_fd, &info) != 0)
+    {
+      // ERROR
+      // TODO CLOSE CONNECTION
+      break;
+    }
+
+    // Read data from the client
+    if (receive_message(client_socket_fd, &data_read, info.size) != 0)
+    {
+      // ERROR
+      // TODO CLOSE CONNECTION
+      break;
+    }
+
+    // Check type of message and handle
+    if (info.type == REQUEST_ADDR_SELF)
+    {
+      // return address self
+    }
+    else if (info.type == TFILE_DEF)
+    {
+      // add tfile to self definition
+    }
+
+    else if (info.type == FILE_DATA)
+    {
+      // add file data to where it needs to go
+    }
+  }
+
+  return NULL;
 }

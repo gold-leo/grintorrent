@@ -1,7 +1,7 @@
 CC := clang
 CFLAGS := -g -Wall -Werror -Wno-unused-function -Wno-unused-variable
 
-all: grintorrent
+all: client_test
 
 clean:
 	rm -f grintorrent file_test client_test message_test
