@@ -5,10 +5,11 @@
 #define MAX_MESSAGE_LENGTH 2048
 
 // Types of messages (stored in header data)
-#define FILE_DATA         0xA
-#define TFILE_DEF         0xB
-#define ADDR_SELF         0xC
-#define REQUEST_ADDR_SELF 0xD
+#define REQUEST_FILE_DATA 0xA
+#define FILE_DATA         0xB
+#define TFILE_DEF         0xC
+#define ADDR_SELF         0xD
+#define REQUEST_ADDR_SELF 0xE
 typedef unsigned char message_type_t;
 
 typedef struct {

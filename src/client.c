@@ -37,6 +37,21 @@ typedef struct
   struct sockaddr_in server_addr;
 } sockdata_t;
 
+typedef struct
+{
+  tfile_def_t tfile;
+  peer_fd_t sender;
+  peers_t *peers;
+} send_tfile_t;
+
+typedef struct
+{
+  int server_fd;
+  int client_fd;
+} client_server_t;
+
+#define NO_SENDER_PEER -1
+
 // FUNCTION DEFINITONS
 void print_usage(char **argv);
 void parse_args(cmd_args_t *args, int argc, char **argv);
@@ -44,6 +59,8 @@ void free_args(cmd_args_t args);
 sockdata_t get_address_self(peer_fd_t socket);
 void *readWorker(void *args);
 void *connectWorker(void *args);
+void remove_peers(int peers_to_remove_count, peer_fd_t peers_to_remove[peers_to_remove_count]);
+void *share_tfile_to_peers(void *args);
 // END FUNCTION DEFINITIONS
 
 // Add a peer to peers_t
@@ -96,11 +113,15 @@ peers_t peers = {
     .lock = PTHREAD_MUTEX_INITIALIZER,
     .capacity = 100,
     .size = 0};
+
+// Hash table of the tfiles.
+htable_t ht;
 // END GLOBALS
 
 // ----Main loop----
 int main(int argc, char **argv)
 {
+  init_htable(&ht);
 
   // increase peer array
   peers.arr = malloc(peers.capacity * sizeof(peer_fd_t));
@@ -125,10 +146,6 @@ int main(int argc, char **argv)
   // const char *hostname[45];
   struct sockaddr_in client_addr;
   socklen_t client_addr_len = sizeof(struct sockaddr_in);
-
-  // Hash table of the tfiles.
-  htable_t ht;
-  init_htable(&ht);
 
   // parse arguments
   cmd_args_t args = {NULL};
@@ -177,23 +194,20 @@ int main(int argc, char **argv)
     // save self information
     self_address = get_address_self(host_peer);
   }
-  // else
-  // {
-  //   // Set hostname of this client
-  //   memcpy(hostname, argv[1], 45);
-  // }
-
-  /**
-   * MAKE INTERACTIVE FROM TO READ FILES ON NETWORK.
-   * IF A FILE IS PRESENT< STORE THE FILE AND SPLIT INTO CHUNKS.
-   * SEND AND RECEIVE REQUESTS FORM OTHERS.
-   */
 
   // file was specified and must be added to current list of files
   if (args.file_p)
   {
+
     tfile_def_t new_tfile;
     generate_tfile(&ht, &new_tfile, args.file_p, args.file_p);
+
+    // run thread to share tfile to all peers
+    send_tfile_t data = {
+        .sender = NO_SENDER_PEER,
+        .tfile = new_tfile};
+    pthread_t thread;
+    pthread_create(&thread, NULL, share_tfile_to_peers, (void *)&data);
   }
 
   // Accept conections from peers
@@ -202,6 +216,62 @@ int main(int argc, char **argv)
 
   free_args(args);
   exit(EXIT_SUCCESS);
+}
+
+/**
+ * This function shares a tfile to all peers. If the senderof the pfile is specified, it skips them.
+ * \param args The struct holding the t file to be sent to all files as the sender of the tfile who should be skipped and should not revceive the tfile again. Set to 0 to skip
+ * \param new_tfile The tfile to be shared to all peers
+ * \param sender The sender of the tfile who should not be sent the message
+ */
+void *share_tfile_to_peers(void *args)
+{
+
+  send_tfile_t data = *((send_tfile_t *)args);
+  // create messag info
+  message_info_t info = {
+      .type = TFILE_DEF,
+      .size = sizeof(data.tfile)};
+
+  // share file with all peers
+  pthread_mutex_lock(&data.peers->lock);
+
+  // store peers to remove and remove them outside of the loop
+  peer_fd_t peers_to_remove[data.peers->size];
+  int peers_to_remove_count = 0;
+
+  for (int i = 0; i < data.peers->size; i++)
+  {
+    // skip the sender
+    if (data.peers->arr[i] == data.sender)
+      continue;
+
+    // send message to peer with information on the tfile
+    if (send_message(data.peers->arr[i], &info, (void *)&data.tfile) != 0)
+    {
+      // remove peer but do it outside of the loop
+      peers_to_remove[peers_to_remove_count++] = i;
+    }
+  }
+
+  remove_peers(peers_to_remove_count, peers_to_remove);
+
+  pthread_mutex_unlock(&data.peers->lock);
+
+  return NULL;
+}
+
+/**
+ * Removes peers specified in teh list of peers to remove
+ * \param peers_to_remove_count The nubmer of peers to remove
+ * \param peers_to_remove Array containing the peers to remove
+ */
+void remove_peers(int peers_to_remove_count, peer_fd_t peers_to_remove[peers_to_remove_count])
+{
+  for (int i = 0; i < peers_to_remove_count; i++)
+  {
+    remove_peer(&peers, peers_to_remove[i]);
+  }
 }
 
 /**
@@ -218,7 +288,7 @@ sockdata_t get_address_self(peer_fd_t socket)
   socklen_t server_addr_len;
   struct sockaddr_in server_addr;
 
-  while (1)
+  while (true)
   {
     message_info_t info;
     if (incoming_message_info(socket, &info) == FAILED)
@@ -358,8 +428,9 @@ void *connectWorker(void *args)
     int client_socket_fd = server_socket_accept(*((int *)args));
     if (client_socket_fd == -1)
     {
-      perror("accept failed");
-      exit(EXIT_FAILURE);
+      // remove that peer
+      remove_peer(&peers, client_socket_fd);
+      continue;
     }
 
     add_peer(&peers, client_socket_fd);
@@ -377,11 +448,12 @@ void *connectWorker(void *args)
 
 /**
  * This function watches a socket forever until a message is read. That message is then displayed and relayed to all other connected sockets.
- * \param args a void star pointer holding the id of the client to reaad from.
+ * \param args a void star pointer holding the struct with the client and server fd
  */
 void *readWorker(void *args)
 {
-  int client_socket_fd = *(int *)args;
+
+  client_server_t fd_data = *(client_server_t *)args;
   void *data_read;
 
   while (true)
@@ -389,29 +461,55 @@ void *readWorker(void *args)
     // get message data
     message_info_t info;
 
-    if (incoming_message_info(client_socket_fd, &info) != 0)
+    if (incoming_message_info(fd_data.client_fd, &info) != 0)
     {
       // ERROR
-      // TODO CLOSE CONNECTION
+      remove_peer(&peers, fd_data.client_fd);
       break;
     }
 
     // Read data from the client
-    if (receive_message(client_socket_fd, &data_read, info.size) != 0)
+    if (receive_message(fd_data.client_fd, &data_read, info.size) != 0)
     {
       // ERROR
-      // TODO CLOSE CONNECTION
+      remove_peer(&peers, fd_data.client_fd);
       break;
     }
 
     // Check type of message and handle
     if (info.type == REQUEST_ADDR_SELF)
     {
+      socklen_t server_addr_len;
+      struct sockaddr_in server_addr;
+      int socket = server_socket_accept_addr(fd_data.server_fd, &server_addr, &server_addr_len);
+      if (socket == -1)
+      {
+        perror("accept failed");
+        remove_peer(&peers, fd_data.client_fd);
+        break;
+      }
+
       // return address self
+      message_info_t info = {
+          .type = ADDR_SELF,
+          .size = server_addr_len};
+      send_message(socket, &info, &server_addr);
     }
     else if (info.type == TFILE_DEF)
     {
+      tfile_def_t new_tfile = *((tfile_def_t *)data_read);
+
       // add tfile to self definition
+      add_htable(&ht, new_tfile);
+
+      // share that file with your pers list
+      // run thread to share tfile to all peers
+      send_tfile_t share_data = {
+          .sender = fd_data.client_fd,
+          .tfile = new_tfile};
+
+      pthread_t thread;
+      pthread_create(&thread, NULL, share_tfile_to_peers, (void *)&share_data);
     }
 
     else if (info.type == FILE_DATA)
