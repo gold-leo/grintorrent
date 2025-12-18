@@ -50,6 +50,19 @@ typedef struct
   int client_fd;
 } client_server_t;
 
+typedef struct
+{
+  unsigned char file_hash[MD5_DIGEST_LENGTH];
+  int chunk_index;
+} chunk_request_t;
+
+typedef struct
+{
+  unsigned char file_hash[MD5_DIGEST_LENGTH];
+  int chunk_index;
+  uint32_t chunk_size;
+} chunk_payload_t;
+
 #define NO_SENDER_PEER -1
 
 // FUNCTION DEFINITONS
@@ -61,6 +74,9 @@ void *readWorker(void *args);
 void *connectWorker(void *args);
 void remove_peers(int peers_to_remove_count, peer_fd_t peers_to_remove[peers_to_remove_count]);
 void *share_tfile_to_peers(void *args);
+int send_chunk_message(int fd, htable_t *ht,
+                       unsigned char file_hash[MD5_DIGEST_LENGTH],
+                       int chunk_index);
 // END FUNCTION DEFINITIONS
 
 // Add a peer to peers_t
@@ -512,6 +528,32 @@ void *readWorker(void *args)
       pthread_create(&thread, NULL, share_tfile_to_peers, (void *)&share_data);
     }
 
+    else if (info.type == REQUEST_FILE_DATA)
+    {
+      // LOOK AT FILE CHUNK BEING REQUESTED
+      chunk_request_t data = *(chunk_request_t *)args;
+
+      verified_chunks_t chunks = verify_tfile(&ht, data.file_hash);
+
+      // i have the chunk and can return the data
+      if (is_chunk_verified(chunks, data.chunk_index))
+      {
+        if (send_chunk_message(fd_data.client_fd, &ht, data.file_hash, data.chunk_index) == FAILED)
+        {
+          remove_peer(&peers, fd_data.client_fd);
+          break;
+        }
+      }
+      // cannot send this chunk, return nothing
+      else
+      {
+        // send response without data
+        message_info_t info = {
+            .type = FILE_DATA,
+            .size = 0};
+        send_message(fd_data.client_fd, &info, NULL);
+      }
+    }
     else if (info.type == FILE_DATA)
     {
       // add file data to where it needs to go
@@ -519,4 +561,49 @@ void *readWorker(void *args)
   }
 
   return NULL;
+}
+
+/**
+ * This fucntion sends a chunk of data over to the peer
+ * \param fd the file descriptor of the person to send to,
+ * \param ht the hash table
+ * \param file_hash the hash of the file
+ * \param chunk_index the index of the chunk which must be sent
+ */
+int send_chunk_message(int fd, htable_t *ht,
+                       unsigned char file_hash[MD5_DIGEST_LENGTH],
+                       int chunk_index)
+{
+  void *chunk_ptr = NULL;
+  off_t chunk_size = open_tfile(ht, &chunk_ptr, file_hash, chunk_index);
+  if (chunk_size <= 0 || chunk_ptr == NULL)
+  {
+    return FAILED;
+  }
+
+  // Allocate payload buffer
+  size_t payload_size = sizeof(chunk_payload_t) + chunk_size;
+  unsigned char *payload = malloc(payload_size);
+  if (!payload)
+    return FAILED;
+
+  // Fill payload header
+  chunk_payload_t *hdr = (chunk_payload_t *)payload;
+  memcpy(hdr->file_hash, file_hash, MD5_DIGEST_LENGTH);
+  hdr->chunk_index = chunk_index;
+  hdr->chunk_size = htonl((uint32_t)chunk_size);
+
+  // Copy chunk bytes
+  memcpy(payload + sizeof(chunk_payload_t),
+         chunk_ptr,
+         chunk_size);
+
+  // Fill message info
+  message_info_t info = {
+      .type = FILE_DATA,
+      .size = payload_size};
+
+  int rc = send_message(fd, &info, payload);
+  free(payload);
+  return rc;
 }
