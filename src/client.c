@@ -7,102 +7,7 @@
 #include "socket.h"
 #include "file.h"
 #include "message.h"
-#include "socket.h"
-
-// Socket file descriptor type
-typedef int peer_fd_t;
-
-// List of peer socket file descriptors.
-typedef struct
-{
-  pthread_mutex_t lock;
-  int capacity;
-  int size;
-  peer_fd_t *arr;
-} peers_t;
-
-// structure to hold arguments
-typedef struct
-{
-  char *peer_p;
-  char *port_p;
-  char *file_p;
-  char *username_p;
-
-} cmd_args_t;
-
-typedef struct
-{
-  socklen_t server_addr_len;
-  struct sockaddr_in server_addr;
-} sockdata_t;
-
-typedef struct
-{
-  tfile_def_t tfile;
-  peer_fd_t sender;
-  peers_t *peers;
-} send_tfile_t;
-
-typedef struct
-{
-  int server_fd;
-  int client_fd;
-} client_server_t;
-
-#define NO_SENDER_PEER -1
-
-// FUNCTION DEFINITONS
-void print_usage(char **argv);
-void parse_args(cmd_args_t *args, int argc, char **argv);
-void free_args(cmd_args_t args);
-sockdata_t get_address_self(peer_fd_t socket);
-void *readWorker(void *args);
-void *connectWorker(void *args);
-void remove_peers(int peers_to_remove_count, peer_fd_t peers_to_remove[peers_to_remove_count]);
-void *share_tfile_to_peers(void *args);
-// END FUNCTION DEFINITIONS
-
-// Add a peer to peers_t
-void add_peer(peers_t *peers, peer_fd_t peer)
-{
-  if (peers->capacity >= peers->size)
-  {
-    pthread_mutex_lock(&peers->lock);
-    peers->arr = realloc(peers->arr, peers->capacity * 2 * sizeof(peer_fd_t));
-    peers->arr[peers->size++] = peer;
-    pthread_mutex_unlock(&peers->lock);
-  }
-  else
-  {
-    pthread_mutex_lock(&peers->lock);
-    peers->arr[peers->size++] = peer;
-    pthread_mutex_unlock(&peers->lock);
-  }
-}
-
-// Remove a peer from peers_t
-void remove_peer(peers_t *peers, peer_fd_t peer)
-{
-  pthread_mutex_lock(&peers->lock);
-  // Find and remove the passed in lock, as order of the array does not matter we just replace the removed socket with the last socket in the array
-  // If the socket is already removed, the loop will fail safely.
-  for (int i = 0; i < peers->size; i++)
-  {
-    if (peers->arr[i] == peer)
-    {
-      close(peers->arr[i]);
-      peers->arr[i] = peers->arr[--peers->size];
-      break;
-    }
-  }
-  pthread_mutex_unlock(&peers->lock);
-}
-
-bool isInitialized(sockdata_t data)
-{
-  return data.server_addr_len;
-}
+#include "client.h"
 
 // GLOBALS
 //  HOLDS SELF ADDRESS NAME AND LENGTH
@@ -512,11 +417,147 @@ void *readWorker(void *args)
       pthread_create(&thread, NULL, share_tfile_to_peers, (void *)&share_data);
     }
 
+    else if (info.type == REQUEST_FILE_DATA)
+    {
+      // LOOK AT FILE CHUNK BEING REQUESTED
+      chunk_request_t data = *(chunk_request_t *)args;
+
+      verified_chunks_t chunks = verify_tfile(&ht, data.file_hash);
+
+      // i have the chunk and can return the data
+      if (is_chunk_verified(chunks, data.chunk_index))
+      {
+        if (send_chunk_message(fd_data.client_fd, &ht, data.file_hash, data.chunk_index) == FAILED)
+        {
+          remove_peer(&peers, fd_data.client_fd);
+          break;
+        }
+      }
+      // cannot send this chunk, return nothing
+      else
+      {
+        // send response without data
+        message_info_t info = {
+            .type = FILE_DATA,
+            .size = 0};
+        send_message(fd_data.client_fd, &info, NULL);
+      }
+    }
     else if (info.type == FILE_DATA)
     {
-      // add file data to where it needs to go
+      // convert header to readable format
+      chunk_payload_t *hdr = (chunk_payload_t *)data_read;
+
+      // credit: https://linux.die.net/man/3/ntohl
+      uint32_t chunk_size = ntohl(hdr->chunk_size);
+      unsigned char *chunk_data =
+          (unsigned char *)data_read + sizeof(chunk_payload_t);
+
+      void *dest = NULL;
+
+      // open tfile for write
+      off_t expected_size =
+          open_tfile(&ht, &dest, hdr->file_hash, hdr->chunk_index);
+
+      // sizes do not match
+      if (expected_size != chunk_size)
+      {
+        perror("An error occured while reading data. Data corrupted.");
+      }
+
+      memcpy(dest, chunk_data, chunk_size);
     }
   }
 
   return NULL;
+}
+
+/**
+ * This fucntion sends a chunk of data over to the peer
+ * \param fd the file descriptor of the person to send to,
+ * \param ht the hash table
+ * \param file_hash the hash of the file
+ * \param chunk_index the index of the chunk which must be sent
+ */
+int send_chunk_message(int fd, htable_t *ht,
+                       unsigned char file_hash[MD5_DIGEST_LENGTH],
+                       int chunk_index)
+{
+  void *chunk_ptr = NULL;
+  off_t chunk_size = open_tfile(ht, &chunk_ptr, file_hash, chunk_index);
+  if (chunk_size <= 0 || chunk_ptr == NULL)
+  {
+    return FAILED;
+  }
+
+  // Allocate payload buffer
+  size_t payload_size = sizeof(chunk_payload_t) + chunk_size;
+  unsigned char *payload = malloc(payload_size);
+  if (!payload)
+    return FAILED;
+
+  // Fill payload header
+  chunk_payload_t *hdr = (chunk_payload_t *)payload;
+  memcpy(hdr->file_hash, file_hash, MD5_DIGEST_LENGTH);
+  hdr->chunk_index = chunk_index;
+  hdr->chunk_size = htonl((uint32_t)chunk_size);
+
+  // Copy chunk bytes
+  memcpy(payload + sizeof(chunk_payload_t),
+         chunk_ptr,
+         chunk_size);
+
+  // Fill message info
+  message_info_t info = {
+      .type = FILE_DATA,
+      .size = payload_size};
+
+  int rc = send_message(fd, &info, payload);
+  free(payload);
+  return rc;
+}
+
+// Add a peer to peers_t
+void add_peer(peers_t *peers, peer_fd_t peer)
+{
+  if (peers->capacity >= peers->size)
+  {
+    pthread_mutex_lock(&peers->lock);
+    peers->arr = realloc(peers->arr, peers->capacity * 2 * sizeof(peer_fd_t));
+    peers->arr[peers->size++] = peer;
+    pthread_mutex_unlock(&peers->lock);
+  }
+  else
+  {
+    pthread_mutex_lock(&peers->lock);
+    peers->arr[peers->size++] = peer;
+    pthread_mutex_unlock(&peers->lock);
+  }
+}
+
+// Remove a peer from peers_t
+void remove_peer(peers_t *peers, peer_fd_t peer)
+{
+  pthread_mutex_lock(&peers->lock);
+  // Find and remove the passed in lock, as order of the array does not matter we just replace the removed socket with the last socket in the array
+  // If the socket is already removed, the loop will fail safely.
+  for (int i = 0; i < peers->size; i++)
+  {
+    if (peers->arr[i] == peer)
+    {
+      close(peers->arr[i]);
+      peers->arr[i] = peers->arr[--peers->size];
+      break;
+    }
+  }
+  pthread_mutex_unlock(&peers->lock);
+}
+
+/**
+ * Verifies is self address is initialized
+ * \param data THe sock data holding information on my curret address
+ */
+bool isInitialized(sockdata_t data)
+{
+  return data.server_addr_len;
 }
