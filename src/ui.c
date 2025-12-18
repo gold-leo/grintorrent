@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <ctype.h>
 
 // The height of the input field in the user interface
 #define INPUT_HEIGHT 3
@@ -14,6 +16,8 @@
 
 // The ncurses forms code is loosely based on the first example at
 // http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/forms.html
+
+/*--------------------------UI Objects---------------------------------*/
 
 // The fields array for the display form
 FIELD* display_fields[2];
@@ -27,6 +31,8 @@ FIELD* input_fields[2];
 // The form that holds the input field
 FORM* input_form;
 
+/*--------------------------Threads---------------------------------*/
+
 // The handle for the UI thread
 pthread_t ui_thread;
 
@@ -34,11 +40,96 @@ pthread_t ui_thread;
 pthread_mutexattr_t ui_lock_attr;
 pthread_mutex_t ui_lock;
 
-// The callback function to run on new input
-static input_callback_t input_callback;
+// Global variable indicating whether the UI loop should run
+static bool ui_running = false; 
 
-// When true, the UI should continue running
-bool ui_running = false;
+/*--------------------------Callback---------------------------------*/
+
+// The callback function to run on new input
+static input_callback_t input_callback = NULL;
+// Called when user presses ENTER on empty input
+static file_list_callback_t file_list_callback = NULL;
+
+//structure that hold message to be displayed
+struct ui_message{
+  char* name;
+  char* message;
+  //pointer to the next message in the list
+  struct ui_message* next;
+};
+// Head of the message list
+static struct ui_message* head = NULL;
+// Tail of the message list
+static struct ui_message* tail = NULL;
+
+// Trims trailing whitespace
+static void safe_trim(char* str) {
+  // Compute length of the string
+  size_t len = strlen(str);
+  if (len == 0) return; 
+  // Start from the last character
+  char* end = str + len - 1; 
+  while (end >= str && isspace((unsigned char)*end)) {
+    *end = '\0'; 
+    end--; 
+}
+}
+
+// Insert a message in the back of the list to be displayed by the UI thread
+static void insert(const char* name, const char* message) {
+  // Allocate a new node
+  struct ui_message* new_node = malloc(sizeof(*new_node));
+  if (!new_node) return;
+
+  // Duplicate name string
+  new_node->name = strdup(name);
+  // Duplicate message string
+  new_node->message = strdup(message); 
+  // Initialize next pointer
+  new_node->next = NULL; 
+  // Lock list for thread-safe access
+  pthread_mutex_lock(&ui_lock);
+
+  //if list is  empty
+  if (!tail) {
+    // New node becomes both head and tail
+    head = tail = new_node; 
+  } else {
+    // Append node to the end of the queue
+    tail->next = new_node;
+    // Update tail pointer
+    tail = new_node; 
+  }
+
+  // Unlock list 
+  pthread_mutex_unlock(&ui_lock);
+}
+
+
+// Remove the top node from the list; returns NULL if list is empty
+static struct ui_message* remove() {
+  pthread_mutex_lock(&ui_lock); // Lock queue for safe removal
+  // Grab current head
+  struct ui_message* top = head;
+  //if not empty
+  if (top) {
+    // Advance head to next element
+    head = top->next;
+    // If list is now empty, clear tail
+    if (!head) tail = NULL;
+  }
+  //Unlock the list
+  pthread_mutex_unlock(&ui_lock);
+  return top;
+}
+
+
+// Registers the callback used to fetch a list of network files
+// File_list_callback is a pointer to a function that will give us the list of files in the network
+void ui_register_file_list_callback(file_list_callback_t cb) {
+  // Store callback pointer
+  file_list_callback = cb;
+}
 
 /**
  * Initialize the user interface and set up a callback function that should be
@@ -51,16 +142,22 @@ bool ui_running = false;
 void ui_init(input_callback_t callback) {
   // Initialize curses
   initscr();
+  // Disable line buffering
   cbreak();
+  // Do not echo typed characters
   noecho();
+  // Hide curser
   curs_set(0);
+  // make getch() non-blocking
   timeout(INPUT_TIMEOUT_MS);
+  // Enable function and arrow keys
   keypad(stdscr, TRUE);
 
   // Get the number of rows and columns in the terminal display
   int rows;
   int cols;
-  getmaxyx(stdscr, rows, cols);  // This uses a macro to modify rows and cols
+  // This uses a macro to modify rows and cols
+  getmaxyx(stdscr, rows, cols);
 
   // Calculate the height of the display field
   int display_height = rows - INPUT_HEIGHT - 1;
@@ -124,100 +221,91 @@ void ui_run() {
 
     // If there was no character, try again
     if (ch == -1) continue;
-
-    // There was some character. Lock the UI
-    pthread_mutex_lock(&ui_lock);
-
-    // Handle input
-    if (ch == KEY_BACKSPACE || ch == KEY_DC || ch == 127) {
-      // Delete the last character when the user presses backspace
-      form_driver(input_form, REQ_DEL_PREV);
-
-    } else if (ch == KEY_ENTER || ch == '\n') {
-      // When the user presses enter, report new input
-
-      // Shift to the "next" field (same field) to update the buffer
-      form_driver(input_form, REQ_NEXT_FIELD);
-
-      // Get a pointer to the start of the input buffer
-      char* buffer = field_buffer(input_fields[0], 0);
-
-      // Get a pointer to the end of the input buffer
-      char* buffer_end = buffer + strlen(buffer) - 1;
-
-      // Seek backward until we find a non-space character in the buffer
-      while (buffer_end[-1] == ' ' && buffer_end >= buffer) {
-        buffer_end--;
+    //Process messages from other threads
+    struct ui_message* message;
+    while((message = remove()) != NULL){
+      //moving to a new line on a display field
+      form_driver(display_form, REQ_NEW_LINE);
+      // Render name character by character
+      for(const char* c = message->name; *c; c++){
+        form_driver(display_form, *c);
       }
 
-      // Compute the length of the input buffer
-      int buffer_len = buffer_end - buffer;
-
-      // If there's a message, handle it
-      if (buffer_len > 0) {
-        // Copy the message string out so it can be null-terminated
-        char message[buffer_len + 1];
-        memcpy(message, buffer, buffer_len);
-        message[buffer_len] = '\0';
-
-        // Run the callback function provided to ui_init
-        input_callback(message);
-
-        // Clear the input field, but only if the UI didn't exit
-        if (ui_running) form_driver(input_form, REQ_CLR_FIELD);
+      form_driver(display_form, ':');
+      form_driver(display_form, ' ');
+      // Render message text
+      for (const char* c = message->message; *c; c++){
+        form_driver(display_form, *c);
       }
 
-    } else {
-      // Report normal input characters to the input field
-      form_driver(input_form, ch);
+      free(message->name); // Free duplicated username string
+      free(message->message); // Free duplicated message string
+      free(message); // Free queue node
     }
 
-    // Unlock the UI
-    pthread_mutex_unlock(&ui_lock);
+    //Handle backspace and delete hey
+    if(ch == KEY_BACKSPACE || ch == 127){
+      //delete previous charachter
+      form_driver(input_form, REQ_DEL_PREV);
+    } else if(ch == '\n' || ch == KEY_ENTER){
+      form_driver(input_form, REQ_NEXT_FIELD);
+      // Obtain ncurses-managed buffer
+      char* raw = field_buffer(input_fields[0], 0);
+      // Independent copy
+      char* copy = strdup(raw); 
+      // Trim trailing whitespace
+      safe_trim(copy);
+      // Empty input: request file list
+      if (strlen(copy) == 0) {
+        // Ensure callback is registered
+        if (file_list_callback) {
+          // Pointer to array of filenames
+          char** files = NULL;
+          int count = file_list_callback(&files);
+          // Creating spacing before header
+          form_driver(display_form, REQ_NEW_LINE);
+          form_driver(display_form, REQ_NEW_LINE);
+          // Header label
+          const char* header = "[ Network Files ]";
+          // Render header
+          for (const char* c = header; *c; c++){
+            form_driver(display_form, *c);
+          }
+        
+          // Iterate through returned file list
+          for (int i = 0; i < count; i++) {
+            form_driver(display_form, REQ_NEW_LINE);// New line per file
+            // Render filename
+            for (char* c = files[i]; *c; c++){
+              form_driver(display_form, *c);
+            }
+            // Free individual filename 
+            free(files[i]);
+          }
+          // Free filename array
+          free(files); 
+        }
+      }else{
+        if(input_callback){
+          input_callback(copy);
+        }
+      }
+      //free duplicate
+      free(copy);
+      //if still running clear the field
+      if(ui_running){
+        form_driver(input_form, REQ_CLR_FIELD);
+      }
+    } else{
+    form_driver(input_form, ch);
+    }
+    refresh();
   }
 }
 
-/**
- * Add a new message to the user interface's display pane.
- *
- * \param username  The username that should appear before the message. The UI
- *                  code will copy the string out of message, so it is safe to
- *                  reuse the memory pointed to by message after this function.
- *
- * \param message   The string that should be added to the display pane. As with
- *                  the username, the UI code will copy the string passed in.
- */
-///no user name just a string
+//Displaying a 
 void ui_display(const char* username, const char* message) {
-  // Lock the UI
-  pthread_mutex_lock(&ui_lock);
-
-  // Don't do anything if the UI is not running
-  if (ui_running) {
-    // Add a newline
-    form_driver(display_form, REQ_NEW_LINE);
-
-    // Display the username
-    const char* c = username;
-    while (*c != '\0') {
-      form_driver(display_form, *c);
-      c++;
-    }
-    form_driver(display_form, ':');
-    form_driver(display_form, ' ');
-
-    // Copy the message over to the display field
-    c = message;
-    while (*c != '\0') {
-      form_driver(display_form, *c);
-      c++;
-    }
-  } else {
-    printf("%s: %s\n", username, message);
-  }
-
-  // Unlock the UI
-  pthread_mutex_unlock(&ui_lock);
+  insert(username, message); // Queue message for UI thread
 }
 
 /**
