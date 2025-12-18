@@ -448,6 +448,11 @@ void *readWorker(void *args)
       // convert header to readable format
       chunk_payload_t *hdr = (chunk_payload_t *)data_read;
 
+      verified_chunks_t chunks = verify_tfile(&ht, hdr->file_hash);
+      // chunk already downloaded
+      if (is_chunk_verified(chunks, hdr->chunk_index))
+        continue;
+
       // credit: https://linux.die.net/man/3/ntohl
       uint32_t chunk_size = ntohl(hdr->chunk_size);
       unsigned char *chunk_data =
