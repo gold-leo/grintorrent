@@ -8,6 +8,8 @@
 #include "file.h"
 #include "message.h"
 #include "client.h"
+#include "ui.h"
+#include "ui_adapter.h"
 
 // GLOBALS
 //  HOLDS SELF ADDRESS NAME AND LENGTH
@@ -97,7 +99,7 @@ int main(int argc, char **argv)
     pthread_create(&thread, NULL, readWorker, (void *)&host_peer);
 
     // save self information
-    self_address = get_address_self(host_peer);
+    // self_address = get_address_self(host_peer);
   }
 
   // file was specified and must be added to current list of files
@@ -107,32 +109,78 @@ int main(int argc, char **argv)
     tfile_def_t new_tfile;
     generate_tfile(&ht, &new_tfile, args.file_p, args.file_p);
 
-    // run thread to share tfile to all peers
-    send_tfile_t data = {
-        .sender = NO_SENDER_PEER,
-        .tfile = new_tfile};
     pthread_t thread;
-    pthread_create(&thread, NULL, share_tfile_to_peers, (void *)&data);
+    send_tfile_t *data = malloc(sizeof(send_tfile_t));
+    *data = (send_tfile_t){
+        .sender = NO_SENDER_PEER,
+        .tfile = new_tfile,
+        .peers = &peers};
+    pthread_create(&thread, NULL, share_tfile_to_peers, data);
   }
 
   // Accept conections from peers
   pthread_t thread;
   pthread_create(&thread, NULL, connectWorker, (void *)&server_fd);
 
-  free_args(args);
-  exit(EXIT_SUCCESS);
+  ui_init(ui_input_handler);
+
+  char message[256];
+
+  // Format the message using snprintf
+  snprintf(message, sizeof(message), "Running on port %d", network_port);
+
+  // Now call the ui_display function with the formatted message
+  ui_display("system", message);
+
+  ui_register_file_list_callback(ui_list_network_files);
+
+  ui_run();
+  // display ui running
+
+  // free_args(args);
+  ui_exit();
 }
 
 /**
+ * This function shares all tfiles to a single peer.
+ * \param args The struct holding all the necessary information for this worker
+ */
+void *share_tfiles_to_peer(void *args)
+{
+  send_tfiles_t data = *((send_tfiles_t *)args);
+  pthread_mutex_lock(&data.peers->lock);
+
+  // send all files
+  for (int i = 0; i < data.count; i++)
+  {
+
+    // create messag info
+    message_info_t info = {
+        .type = TFILE_DEF,
+        .size = sizeof(data.tfile_arr[i])};
+
+    // send message to peer with information on the tfile
+    if (send_message(data.peer, &info, (void *)&data.tfile_arr[i]) != 0)
+    {
+      // peer should be removed
+      remove_peer(&peers, data.peer);
+    }
+  }
+
+  pthread_mutex_unlock(&data.peers->lock);
+
+  return NULL;
+}
+/**
  * This function shares a tfile to all peers. If the senderof the pfile is specified, it skips them.
  * \param args The struct holding the t file to be sent to all files as the sender of the tfile who should be skipped and should not revceive the tfile again. Set to 0 to skip
- * \param new_tfile The tfile to be shared to all peers
- * \param sender The sender of the tfile who should not be sent the message
+
  */
 void *share_tfile_to_peers(void *args)
 {
 
   send_tfile_t data = *((send_tfile_t *)args);
+
   // create messag info
   message_info_t info = {
       .type = TFILE_DEF,
@@ -145,11 +193,15 @@ void *share_tfile_to_peers(void *args)
   peer_fd_t peers_to_remove[data.peers->size];
   int peers_to_remove_count = 0;
 
+  // printf("WE ARE SENDING TFILES!!%d\n", data.peers->size);
+
   for (int i = 0; i < data.peers->size; i++)
   {
     // skip the sender
     if (data.peers->arr[i] == data.sender)
+    {
       continue;
+    }
 
     // send message to peer with information on the tfile
     if (send_message(data.peers->arr[i], &info, (void *)&data.tfile) != 0)
@@ -308,7 +360,6 @@ void parse_args(cmd_args_t *args, int argc, char **argv)
       }
       break;
     case ':':
-      printf("IAM HERE!\n");
       print_usage(argv);
       exit(EXIT_FAILURE);
       break;
@@ -337,16 +388,27 @@ void *connectWorker(void *args)
       remove_peer(&peers, client_socket_fd);
       continue;
     }
+    // printf("GOT A NEW PEER\n");
 
     add_peer(&peers, client_socket_fd);
 
-    // initialize self from peer
-    if (!isInitialized(self_address))
-      self_address = get_address_self(client_socket_fd);
+    // // initialize self from peer
+    // if (!isInitialized(self_address))
+    //   self_address = get_address_self(client_socket_fd);
 
-    // watch peer for meesages
     pthread_t thread;
-    pthread_create(&thread, NULL, readWorker, (void *)&client_socket_fd);
+
+    // send peer all tfiles_describptions
+    send_tfiles_t *files_data = malloc(sizeof(send_tfiles_t));
+    files_data->count = list_tfiles(&ht, &files_data->tfile_arr);
+    files_data->peer = client_socket_fd;
+    files_data->peers = &peers;
+    pthread_create(&thread, NULL, share_tfiles_to_peer, files_data);
+
+    // watch peer for messages
+    int *fd_ptr = malloc(sizeof(int));
+    *fd_ptr = client_socket_fd;
+    pthread_create(&thread, NULL, readWorker, fd_ptr);
   }
   return NULL;
 }
@@ -359,14 +421,16 @@ void *readWorker(void *args)
 {
 
   client_server_t fd_data = *(client_server_t *)args;
-  void *data_read;
+  size_t message_size = 100000;
+  void *data_read = malloc(message_size);
 
   while (true)
   {
+
     // get message data
     message_info_t info;
 
-    if (incoming_message_info(fd_data.client_fd, &info) != 0)
+    if (incoming_message_info(fd_data.server_fd, &info) != 0)
     {
       // ERROR
       remove_peer(&peers, fd_data.client_fd);
@@ -374,7 +438,7 @@ void *readWorker(void *args)
     }
 
     // Read data from the client
-    if (receive_message(fd_data.client_fd, &data_read, info.size) != 0)
+    if (receive_message(fd_data.server_fd, data_read, info.size) != 0)
     {
       // ERROR
       remove_peer(&peers, fd_data.client_fd);
@@ -402,45 +466,63 @@ void *readWorker(void *args)
     }
     else if (info.type == TFILE_DEF)
     {
-      tfile_def_t new_tfile = *((tfile_def_t *)data_read);
+
+      tfile_def_t new_tfile = *(tfile_def_t *)data_read;
 
       // add tfile to self definition
       add_htable(&ht, new_tfile);
 
       // share that file with your pers list
       // run thread to share tfile to all peers
-      send_tfile_t share_data = {
-          .sender = fd_data.client_fd,
-          .tfile = new_tfile};
-
       pthread_t thread;
-      pthread_create(&thread, NULL, share_tfile_to_peers, (void *)&share_data);
+      send_tfile_t *data = malloc(sizeof(send_tfile_t));
+      *data = (send_tfile_t){
+          .sender = fd_data.server_fd,
+          .tfile = new_tfile,
+          .peers = &peers};
+      pthread_create(&thread, NULL, share_tfile_to_peers, data);
     }
 
     else if (info.type == REQUEST_FILE_DATA)
     {
       // LOOK AT FILE CHUNK BEING REQUESTED
-      chunk_request_t data = *(chunk_request_t *)args;
+      chunk_request_t req = *(chunk_request_t *)data_read;
 
-      verified_chunks_t chunks = verify_tfile(&ht, data.file_hash);
+      verified_chunks_t chunks = verify_tfile(&ht, req.file_hash);
 
       // i have the chunk and can return the data
-      if (is_chunk_verified(chunks, data.chunk_index))
+      if (is_chunk_verified(chunks, req.chunk_index))
       {
-        if (send_chunk_message(fd_data.client_fd, &ht, data.file_hash, data.chunk_index) == FAILED)
+
+        int out_fd = socket_connect_addr(req.return_addr,
+                                         req.return_addr_len);
+
+        if (out_fd != -1)
         {
-          remove_peer(&peers, fd_data.client_fd);
-          break;
+
+          send_chunk_message(out_fd, &ht,
+                             req.file_hash,
+                             req.chunk_index);
         }
       }
-      // cannot send this chunk, return nothing
+      // cannot send this chunk, relay to my peers
       else
       {
-        // send response without data
-        message_info_t info = {
-            .type = FILE_DATA,
-            .size = 0};
-        send_message(fd_data.client_fd, &info, NULL);
+        message_info_t fwd = {
+            .type = REQUEST_FILE_DATA,
+            .size = sizeof(chunk_request_t)};
+
+        pthread_mutex_lock(&peers.lock);
+        for (int i = 0; i < peers.size; i++)
+        {
+
+          // skip mysef
+          if (peers.arr[i] == fd_data.client_fd)
+            continue;
+
+          send_message(peers.arr[i], &fwd, &req);
+        }
+        pthread_mutex_unlock(&peers.lock);
       }
     }
     else if (info.type == FILE_DATA)
@@ -518,14 +600,13 @@ int send_chunk_message(int fd, htable_t *ht,
       .size = payload_size};
 
   int rc = send_message(fd, &info, payload);
-  free(payload);
   return rc;
 }
 
 // Add a peer to peers_t
 void add_peer(peers_t *peers, peer_fd_t peer)
 {
-  if (peers->capacity >= peers->size)
+  if (peers->size >= peers->capacity)
   {
     pthread_mutex_lock(&peers->lock);
     peers->arr = realloc(peers->arr, peers->capacity * 2 * sizeof(peer_fd_t));
@@ -550,7 +631,7 @@ void remove_peer(peers_t *peers, peer_fd_t peer)
   {
     if (peers->arr[i] == peer)
     {
-      close(peers->arr[i]);
+      // close(peers->arr[i]);
       peers->arr[i] = peers->arr[--peers->size];
       break;
     }
@@ -575,12 +656,74 @@ bool isInitialized(sockdata_t data)
 void *download_file(unsigned char file_hash[MD5_DIGEST_LENGTH])
 {
 
-  int downloaded_chunks = 0;
-  while (downloaded_chunks < NUM_CHUNKS)
-  {
-    // KEEP REQUESTING CHUNKS FROM PEOPLE TO BE DOWNLOADED
+  // open temporary port to listen for chunk donwloads.
+  unsigned short temp_port = 0;
+  int server_fd = server_socket_open(&temp_port);
+  if (server_fd == -1)
+    return NULL;
 
-    // TODO
+  listen(server_fd, 10);
+
+  // Create thread to listen at this prt for incoming connections
+  pthread_t recv_thread;
+  int *fd_ptr = malloc(sizeof(int));
+  *fd_ptr = server_fd;
+  pthread_create(&recv_thread, NULL, connectWorker, fd_ptr);
+
+  // The return address of this temporary port so it can be found
+  // credit: https://stackoverflow.com/a/13047959
+  struct sockaddr_in return_addr = {
+      .sin_family = AF_INET,
+      .sin_port = htons(temp_port),
+      .sin_addr.s_addr = INADDR_ANY};
+
+  while (true)
+  {
+    // stop if the fie is fully downloaded.
+    verified_chunks_t chunks = verify_tfile(&ht, file_hash);
+    if (chunks == VERIFIED_FILE)
+      break;
+
+    for (int i = 0; i < NUM_CHUNKS; i++)
+    {
+      // only download incomplete
+      if (!is_chunk_verified(chunks, i))
+      {
+        chunk_request_t req = {
+            .chunk_index = i,
+            .ttl = 5,
+            .return_addr = return_addr,
+            .return_addr_len = sizeof(return_addr)};
+
+        memcpy(req.file_hash, file_hash, MD5_DIGEST_LENGTH);
+
+        message_info_t info = {
+            .type = REQUEST_FILE_DATA,
+            .size = sizeof(chunk_request_t)};
+
+        pthread_mutex_lock(&peers.lock);
+        for (int p = 0; p < peers.size; p++)
+        {
+          send_message(peers.arr[p], &info, &req);
+        }
+        pthread_mutex_unlock(&peers.lock);
+      }
+    }
+
+    // allows the response to arrive
+    sleep(1);
   }
+
+  // save file to disk
+  save_tfile(&ht, file_hash);
+  char message[500];
+
+  // Format the message using snprintf
+  snprintf(message, sizeof(message), "File '%s' downloaded!", search_htable(&ht, file_hash)->tdef.name);
+
+  // Now call the ui_display function with the formatted message
+  ui_display("system", message);
+
+  close(server_fd);
   return NULL;
 }

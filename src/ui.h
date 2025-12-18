@@ -7,11 +7,11 @@
  * will be reused after the callback returns, so if you need to retain the
  * string after the callback you must copy it.
  */
-typedef void (*input_callback_t)(const char*);
+typedef void (*input_callback_t)(const char *);
 
 /* Called when user presses ENTER on empty input
  * Must allocate an array of strings and return count */
-typedef int (*file_list_callback_t)(char*** files);
+typedef int (*file_list_callback_t)(char ***files);
 
 /**
  * Initialize the user interface and set up a callback function that should be
@@ -21,8 +21,7 @@ typedef int (*file_list_callback_t)(char*** files);
  *                  The string passed to the callback should be copied if you
  *                  need to retain it after the callback function returns.
  */
-void ui_init(input_callback_t callback);
-
+void ui_init(input_callback_t input_handler);
 /**
  * Run the main UI loop. This function will only return the UI is exiting.
  */
@@ -38,15 +37,20 @@ void ui_run();
  * \param message   The string that should be added to the display pane. As with
  *                  the username, the UI code will copy the string passed in.
  */
-void ui_display(const char* username, const char* message);
+void ui_display(const char *username, const char *message);
 
 /**
  * Stop the user interface and clean up.
  */
 void ui_exit();
 
-/* UI interaction */
-void ui_display(const char* username, const char* message);
-void ui_register_file_list_callback(file_list_callback_t cb);
+/**
+ * Shows the file list to the user
+ */
+void ui_display_file_list();
 
+
+/* UI interaction */
+void ui_display(const char *username, const char *message);
+void ui_register_file_list_callback(file_list_callback_t cb);
 #endif

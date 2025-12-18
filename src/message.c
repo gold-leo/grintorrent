@@ -1,6 +1,7 @@
 #include "message.h"
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdio.h>
 
 int send_message(int fd, message_info_t *info, void *data)
 {
@@ -86,10 +87,22 @@ int receive_message(int fd, void *data, size_t size)
 int incoming_message_info(int fd, message_info_t *info)
 {
   size_t s = sizeof(message_info_t);
-  if (recv(fd, info, sizeof(message_info_t), MSG_PEEK) != sizeof(message_info_t))
+  ssize_t result = recv(fd, info, sizeof(message_info_t), MSG_PEEK);
+
+  if (result != sizeof(message_info_t))
   {
+    if (result == 0)
+    {
+      // Connection closed by peer
+      printf("Connection closed by peer\n");
+    }
+    else if (result < 0)
+    {
+      // Error during receive
+      perror("recv failed");
+    }
     return FAILED;
   }
+
   return SUCCESS;
 }
-

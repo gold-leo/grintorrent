@@ -119,8 +119,8 @@ int generate_tfile(htable_t *htable, tfile_def_t *tdef, char *file_path, char na
 
   // Set file and memory locations
   int len = strlen(file_path);
-  t->f_location = malloc(len);
-  memcpy(t->f_location, file_path, len);
+  t->f_location = malloc(len + 1);
+  strcpy(t->f_location, file_path);
   t->m_location = NULL;
 
   return 0;
@@ -195,7 +195,9 @@ off_t open_tfile(htable_t *htable, void **location, unsigned char hash[MD5_DIGES
     }
     // Set the size to be equal to the tfile specification
     ftruncate(fd, tf->tdef.size);
-    void *m_location = mmap(NULL, (size_t)tf->tdef.size, PROT_WRITE, MAP_SHARED, fd, 0); // Converting a signed long to an unsigned long might be a bad idea
+    void *m_location = mmap(NULL, (size_t)tf->tdef.size, PROT_WRITE, MAP_SHARED, fd, 0);
+    if (tf->m_location == MAP_FAILED)
+      return -1; // Converting a signed long to an unsigned long might be a bad idea
     if (m_location == MAP_FAILED)
     {
       perror("Could not create a memory-mapped location for the file");
