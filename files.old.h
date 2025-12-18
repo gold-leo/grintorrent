@@ -4,6 +4,10 @@
 #include <openssl/md5.h>
 #include <sys/stat.h>
 
+int create_new_file_desc(char*, file_desc_t*);
+int verify_file(char*, file_desc_t*, file_status*);
+
+
 //structure holding chunk information
 typedef struct {
   bool status;
@@ -19,6 +23,11 @@ typedef struct {
   chunk_t *chunks;
 
 } file_desc_t;
+
+// status of a file
+typedef struct {
+
+} file_status;
 
 #endif
 

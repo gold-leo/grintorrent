@@ -4,9 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "files.h"
+#include "../src/file.h"
 #include "socket.h"
-#include "ui.h"
 
 #define TORRENT_CHUNK_SIZE 2048
 #define MAX_MESSAGE_LENGTH 2048
@@ -295,7 +294,17 @@ int main(int argc, char **argv)
   // file was specified and must be added to current list of files
   if (args.file_p)
   {
-    // TODO
+
+    file_desc_t new_file;
+
+    if(create_new_file_desc(args.file_p, &new_file) == -1){
+      perror("Failed to create file description nad nmap");
+      exit(EXIT_FAILURE);
+    }
+    
+    /**
+     * STORE THIS FILE WITHIN FILE LIST FOR SERVER
+     */
   }
 
   exit(EXIT_SUCCESS);
@@ -478,7 +487,7 @@ void parse_args(cmd_args_t *args, int argc, char **argv)
  * \param file THe file structure which holds all the information of the file.
  * \return An interger of the number of chunks of that file
  * */
-int get_number_of_chunks(file_t file)
+int get_number_of_chunks(file_desc_t file)
 {
   if (file.sb.st_size < TORRENT_CHUNK_SIZE)
     return 1;
