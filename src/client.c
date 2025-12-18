@@ -577,4 +577,5 @@ void *download_file(unsigned char file_hash[MD5_DIGEST_LENGTH])
 
     // TODO
   }
+  return NULL;
 }

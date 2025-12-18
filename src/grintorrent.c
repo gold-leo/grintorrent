@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "../src/file.h"
 #include "socket.h"
+#include "ui.h"
 
 #define TORRENT_CHUNK_SIZE 2048
 #define MAX_MESSAGE_LENGTH 2048
@@ -36,10 +37,9 @@ int currentSize = 0;
 // Keep the username in a global so we can access it from the callback
 const char *username;
 
-
-//get all the files{}
-void network_info(){
-  
+// get all the files{}
+void network_info()
+{
 }
 
 // This function is run whenever the user hits enter after typing a message
@@ -297,11 +297,12 @@ int main(int argc, char **argv)
 
     file_desc_t new_file;
 
-    if(create_new_file_desc(args.file_p, &new_file) == -1){
+    if (create_new_file_desc(args.file_p, &new_file) == -1)
+    {
       perror("Failed to create file description nad nmap");
       exit(EXIT_FAILURE);
     }
-    
+
     /**
      * STORE THIS FILE WITHIN FILE LIST FOR SERVER
      */
@@ -491,9 +492,12 @@ int get_number_of_chunks(file_desc_t file)
 {
   if (file.sb.st_size < TORRENT_CHUNK_SIZE)
     return 1;
-  else{
-    //if there is a remainder, include more space
-    if (file.sb.st_size % TORRENT_CHUNK_SIZE != 0) return file.sb.st_size / TORRENT_CHUNK_SIZE + 1;
-    else return file.sb.st_size / TORRENT_CHUNK_SIZE;
-    }
+  else
+  {
+    // if there is a remainder, include more space
+    if (file.sb.st_size % TORRENT_CHUNK_SIZE != 0)
+      return file.sb.st_size / TORRENT_CHUNK_SIZE + 1;
+    else
+      return file.sb.st_size / TORRENT_CHUNK_SIZE;
+  }
 }

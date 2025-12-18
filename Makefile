@@ -6,8 +6,8 @@ all: client_test
 clean:
 	rm -f grintorrent file_test client_test message_test
 
-grintorrent: grintorrent.c ui.c ui.h
-	$(CC) $(CFLAGS) -o grintorrent grintorrent.c ui.c -lform -lncurses -lpthread -lcrypto -lm
+grintorrent: ./src/grintorrent.c ./src/ui.c ./src/ui.h
+	$(CC) $(CFLAGS) -o ./src/grintorrent ./src/grintorrent.c ./src/ui.c -lform -lncurses -lpthread -lcrypto -lm
 
 file_test: ./src/file.h ./tests/file_test.c ./src/file.c ./src/htable.c
 	$(CC) $(CFLAGS) -Wno-deprecated-declarations -o file_test ./tests/file_test.c ./src/file.c ./src/htable.c -lform -lncurses -lpthread -lcrypto -lm
