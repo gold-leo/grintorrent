@@ -75,8 +75,8 @@ static void safe_trim(char* str) {
 }
 }
 
-// Insert a message in the back of the list to be displayed by the UI thread
-static void insert(const char* name, const char* message) {
+// insert_m inserts a message in the back of the list to be displayed by the UI thread
+static void insert_m(const char* name, const char* message) {
   // Allocate a new node
   struct ui_message* new_node = malloc(sizeof(*new_node));
   if (!new_node) return;
@@ -106,8 +106,8 @@ static void insert(const char* name, const char* message) {
 }
 
 
-// Remove the top node from the list; returns NULL if list is empty
-static struct ui_message* remove() {
+// remove_m - removes the top node from the list; returns NULL if list is empty
+static struct ui_message* remove_m() {
   pthread_mutex_lock(&ui_lock); // Lock queue for safe removal
   // Grab current head
   struct ui_message* top = head;
@@ -223,7 +223,7 @@ void ui_run() {
     if (ch == -1) continue;
     //Process messages from other threads
     struct ui_message* message;
-    while((message = remove()) != NULL){
+    while((message = remove_m()) != NULL){
       //moving to a new line on a display field
       form_driver(display_form, REQ_NEW_LINE);
       // Render name character by character
@@ -305,7 +305,7 @@ void ui_run() {
 
 //Displaying a 
 void ui_display(const char* username, const char* message) {
-  insert(username, message); // Queue message for UI thread
+  insert_m(username, message); // Queue message for UI thread
 }
 
 /**
