@@ -556,7 +556,27 @@ void *readWorker(void *args)
     }
     else if (info.type == FILE_DATA)
     {
-      // add file data to where it needs to go
+      // convert header to readable format
+      chunk_payload_t *hdr = (chunk_payload_t *)data_read;
+
+      // credit: https://linux.die.net/man/3/ntohl
+      uint32_t chunk_size = ntohl(hdr->chunk_size);
+      unsigned char *chunk_data =
+          (unsigned char *)data_read + sizeof(chunk_payload_t);
+
+      void *dest = NULL;
+
+      // open tfile for write
+      off_t expected_size =
+          open_tfile(&ht, &dest, hdr->file_hash, hdr->chunk_index);
+
+      // sizes do not match
+      if (expected_size != chunk_size)
+      {
+        perror("An error occured while reading data. Data corrupted.");
+      }
+
+      memcpy(dest, chunk_data, chunk_size);
     }
   }
 
