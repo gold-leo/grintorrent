@@ -12,7 +12,7 @@ grintorrent: grintorrent.c ui.c ui.h
 file_test: ./src/file.h ./tests/file_test.c ./src/file.c ./src/htable.c
 	$(CC) $(CFLAGS) -Wno-deprecated-declarations -o file_test ./tests/file_test.c ./src/file.c ./src/htable.c -lform -lncurses -lpthread -lcrypto -lm
 
-client_test: ./src/client.c ./src/file.h ./src/socket.h ./src/htable.c ./src/file.c ./src/message.c ./src/message.h 
+client_test: ./src/client.c ./src/client.h ./src/file.h ./src/socket.h ./src/htable.c ./src/file.c ./src/message.c ./src/message.h 
 	$(CC) $(CFLAGS) -Wno-deprecated-declarations -o client_test ./src/client.c ./src/message.c ./src/htable.c ./src/file.c -lcrypto
 
 message_test: ./src/message.h ./src/message.c ./src/socket.h ./tests/message_test.c
