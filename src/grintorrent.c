@@ -36,6 +36,12 @@ int currentSize = 0;
 // Keep the username in a global so we can access it from the callback
 const char *username;
 
+
+//get all the files{}
+void network_info(){
+  
+}
+
 // This function is run whenever the user hits enter after typing a message
 void input_callback(const char *message)
 {

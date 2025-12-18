@@ -9,6 +9,10 @@
  */
 typedef void (*input_callback_t)(const char*);
 
+/* Called when user presses ENTER on empty input
+ * Must allocate an array of strings and return count */
+typedef int (*file_list_callback_t)(char*** files);
+
 /**
  * Initialize the user interface and set up a callback function that should be
  * called every time there is a new message to send.
@@ -40,5 +44,9 @@ void ui_display(const char* username, const char* message);
  * Stop the user interface and clean up.
  */
 void ui_exit();
+
+/* UI interaction */
+void ui_display(const char* username, const char* message);
+void ui_register_file_list_callback(file_list_callback_t cb);
 
 #endif
