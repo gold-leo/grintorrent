@@ -561,3 +561,20 @@ bool isInitialized(sockdata_t data)
 {
   return data.server_addr_len;
 }
+
+/**
+ * This function request chunks of data from the network and dowloads the file to the client machine
+ *  \param file_hash THe hash of the file whic hshould be downloaded from teh network;
+ *
+ */
+void *download_file(unsigned char file_hash[MD5_DIGEST_LENGTH])
+{
+
+  int downloaded_chunks = 0;
+  while (downloaded_chunks < NUM_CHUNKS)
+  {
+    // KEEP REQUESTING CHUNKS FROM PEOPLE TO BE DOWNLOADED
+
+    // TODO
+  }
+}
