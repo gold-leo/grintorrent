@@ -254,7 +254,6 @@ sockdata_t get_address_self(peer_fd_t socket)
     }
     if (info.type == ADDR_SELF)
     {
-      printf("ADDR_SELF (%ld)\n", info.size);
       server_addr_len = info.size;
 
       if (receive_message(socket, &server_addr, server_addr_len))
@@ -323,10 +322,13 @@ void parse_args(cmd_args_t *args, int argc, char **argv)
    * grinntorrent <-u username> [-p <peer> -n <port number>] [-f file]
    */
   int opt;
-  while ((opt = getopt(argc, argv, ":p:n:f:u:")) != -1)
+  while ((opt = getopt(argc, argv, ":p:n:f:u:h")) != -1)
   {
     switch (opt)
     {
+    case 'h':
+      print_usage(argv);
+      exit(EXIT_SUCCESS);
     case 'p':
       args->peer_p = strdup(optarg);
       if (args->peer_p == NULL)
