@@ -23,7 +23,7 @@ file_test: ./tests/file_test.c ./src/file.c ./src/htable.c
 
 client_test: ./src/client.c ./src/message.c ./src/htable.c ./src/file.c ./src/ui.c ./src/ui_adapter.c
 	$(CC) $(CFLAGS) -Wno-deprecated-declarations \
-	-o client_test \
+	-o grintorrent \
 	./src/client.c \
 	./src/message.c \
 	./src/htable.c \
