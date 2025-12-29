@@ -1,7 +1,10 @@
 
 # Grintorrent
 
-Grintorrent is a TCP torrent protocol and client designed for use on Grinnell College local computers.
+Grintorrent is a p2p torrent protocol and client designed for use on Grinnell College local computers.
+Grintorrent uses TCP connections and a tree-style distributed design to share files across Grinnell College's local computers. File information (hashes, sizes) are shared incrementally across the network as new files are added by peers. Files are distributed with a recursive request from a given client, and direct connections for downloading chunks. The protocol opted for a middle ground between a true recursive request over the network and a DNS-style recursive request, focusing on speed over security.
+
+All files are split into eight chunks for simplicity. Chunks are hashed with MD5 for speed, as security was not a prioritized issue. Clients are only allowed to request entire files, but each chunk can be downloaded from different peers concurrently (or in parallel, particularly for Grinnell College's local computers).
 
 ## Program Usage
 
@@ -44,4 +47,3 @@ Currently, there are some known limitations in the program:
 - However, when tested over localhost, it gives the correct results.
 
 We believe the issue lies in the way files are transmitted over the network, and this is an area for future improvement.
-s
