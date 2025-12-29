@@ -43,7 +43,6 @@ When you press Enter, a list of all the current files on the network will appear
 
 Currently, there are some known limitations in the program:
 
-- Sending file chunks over the network is buggy and does not work as expected.
-- However, when tested over localhost, it gives the correct results.
+- While downloading chunks, TCP packets may cut off data due to packet size constraints. However, when tested over localhost, it gives the correct results. Given this constraint, an update would need to send the chunk data in smaller packets.
 
-We believe the issue lies in the way files are transmitted over the network, and this is an area for future improvement.
+
