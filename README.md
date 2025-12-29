@@ -1,7 +1,7 @@
 
 # Grintorrent
 
-Grintorrent is a torrent protocol and client designed for use on Grinnell College local computers.
+Grintorrent is a TCP torrent protocol and client designed for use on Grinnell College local computers.
 
 ## Program Usage
 
